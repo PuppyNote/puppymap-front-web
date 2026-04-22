@@ -65,9 +65,8 @@ export const ReportPlaceModal = ({ isOpen, onClose, position, onSuccess }: Repor
         largeDogAvailable: isLargeDog, 
         parkingAvailable: isParking, 
         offLeashAvailable: isOffLeash,
-        // API 명세에는 없었으나 백엔드 요구에 맞게 imageUrls를 확장해서 보낼 수 있음
-        // 만약 reportPlace에 imageUrls가 없다면 백엔드 수정이 필요할 수 있습니다.
-      } as any) 
+        imageUrls, // 업로드된 이미지 리스트 추가
+      }) 
 
       alert('장소 제보가 완료되었습니다!')
       onSuccess()

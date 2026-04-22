@@ -17,7 +17,7 @@ export const placeApi = {
     }),
 
   // 장소 제보
-  reportPlace: (data: Omit<Place, 'id' | 'userId' | 'userNickName' | 'status' | 'imageUrls' | 'activeTags' | 'likeCount' | 'createdDate'>) =>
+  reportPlace: (data: Omit<Place, 'id' | 'userId' | 'userNickName' | 'status' | 'activeTags' | 'likeCount' | 'createdDate'>) =>
     apiService.post<Place>('/api/v1/places', data),
 
   // 장소 리뷰 목록 조회

@@ -258,7 +258,12 @@ const MapPage = () => {
       </main>
 
       <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
-      <ReportPlaceModal isOpen={isReportModalOpen} onClose={() => setIsReportModalOpen(false)} position={map ? { lat: map.getCenter().getLat(), lng: map.getCenter().getLng() } : currentPosition} onSuccess={() => map && handleMapIdle(map)} />
+      <ReportPlaceModal 
+        isOpen={isReportModalOpen} 
+        onClose={() => setIsReportModalOpen(false)} 
+        position={tempReportPosition || currentPosition} 
+        onSuccess={() => map && handleMapIdle(map)} 
+      />
       <AdminModal isOpen={isAdminModalOpen} onClose={() => setIsAdminModalOpen(false)} />
     </div>
   )
