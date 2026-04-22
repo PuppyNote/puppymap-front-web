@@ -3,7 +3,7 @@ import { adminApi } from '../../services/endpoints/AdminApi'
 import { useState, useEffect } from 'react'
 import type { Place } from '../../types'
 import { CATEGORY_LABELS } from '../../types'
-import { Check, X, MapPin, Calendar, User } from 'lucide-react'
+import { Check, X, MapPin, Calendar, User, ChevronLeft } from 'lucide-react'
 
 interface AdminModalProps {
   isOpen: boolean
