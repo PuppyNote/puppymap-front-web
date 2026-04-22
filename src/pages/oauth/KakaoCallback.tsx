@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import axios from 'axios'
 import { authApi } from '../../services/endpoints/AuthApi'
 import { useAuthStore } from '../../store/useAuthStore'
 
@@ -17,11 +18,30 @@ const KakaoCallback = () => {
 
   const handleKakaoLogin = async (code: string) => {
     try {
-      // 주의: 현재 API 명세에는 'token'을 보내라고 되어 있습니다.
-      // 보통은 프론트에서 받은 'code'를 보내거나, 프론트에서 토큰으로 교환해서 보냅니다.
-      // 여기서는 서버가 code를 처리한다고 가정하거나, 필요 시 토큰 교환 로직이 추가되어야 합니다.
+      // 1. 카카오 토큰 API를 통해 code를 access_token으로 교환
+      const KAKAO_KEY = import.meta.env.VITE_KAKAO_MAP_API_KEY
+      const REDIRECT_URI = `${window.location.origin}/oauth/kakao`
+      
+      const tokenResponse = await axios.post(
+        'https://kauth.kakao.com/oauth/token',
+        new URLSearchParams({
+          grant_type: 'authorization_code',
+          client_id: KAKAO_KEY,
+          redirect_uri: REDIRECT_URI,
+          code: code,
+        }),
+        {
+          headers: {
+            'Content-type': 'application/x-www-form-urlencoded;charset=utf-8',
+          },
+        }
+      )
+
+      const accessToken = tokenResponse.data.access_token
+
+      // 2. 발급받은 실제 access_token을 우리 서버로 전송
       const res = await authApi.oauthLogin({
-        token: code, // 서버에서 code를 받아 토큰으로 교환하는 로직이 구현되어 있다면 code를 그대로 전달
+        token: accessToken,
         snsType: 'KAKAO',
         deviceId: 'web-browser',
         pushKey: ''
@@ -44,7 +64,7 @@ const KakaoCallback = () => {
   return (
     <div className="flex flex-col items-center justify-center h-screen space-y-4">
       <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#FFB800]"></div>
-      <p className="text-gray-500 font-bold">카카오 로그인 중입니다...</p>
+      <p className="text-gray-500 font-bold">로그인 정보를 확인 중입니다...</p>
     </div>
   )
 }
