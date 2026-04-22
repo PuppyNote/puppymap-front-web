@@ -23,9 +23,11 @@ export const usePlaceStore = create<PlaceState>((set, get) => ({
     set({ isLoading: true })
     try {
       let response;
-      if (keyword && lat && lng) {
-        response = await placeApi.searchPlaces(keyword, lat, lng)
+      if (lat && lng) {
+        // 좌표가 있으면 위치 기반 검색 API 호출 (키워드가 없으면 빈 문자열 전달)
+        response = await placeApi.searchPlaces(keyword || '', lat, lng)
       } else {
+        // 좌표가 없으면 일반 목록 조회
         response = await placeApi.getPlaces()
       }
       
@@ -35,7 +37,7 @@ export const usePlaceStore = create<PlaceState>((set, get) => ({
       set({ places, topPlaces, isLoading: false })
     } catch (error) {
       console.error('Fetch places failed:', error)
-      set({ isLoading: false })
+      set({ isLoading: false, places: [], topPlaces: [] })
     }
   },
 
