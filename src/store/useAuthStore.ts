@@ -1,11 +1,6 @@
 import { create } from 'zustand'
 import { storageService } from '../services/auth/StorageService'
-
-interface UserInfo {
-  email: string
-  nickName: string
-  profileUrl?: string
-}
+import type { UserInfo } from '../types'
 
 interface AuthState {
   isLoggedIn: boolean
@@ -16,11 +11,12 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set) => ({
   isLoggedIn: !!storageService.getAccessToken(),
-  user: null, // 실제로는 앱 로드 시 프로필 조회를 통해 채워야 함
+  user: storageService.getUser(), 
   
   login: (accessToken, refreshToken, user) => {
     storageService.saveAccessToken(accessToken)
     storageService.saveRefreshToken(refreshToken)
+    storageService.saveUser(user)
     set({ isLoggedIn: true, user })
   },
   

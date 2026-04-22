@@ -1,4 +1,5 @@
 export type Category = 'PARK' | 'TRAIL' | 'CAFE' | 'ETC';
+export type UserRole = 'USER' | 'ADMIN';
 
 export const CATEGORY_LABELS: Record<Category, string> = {
   PARK: '공원',
@@ -36,4 +37,11 @@ export interface Review {
   rating: number;
   comment: string;
   createdDate: string;
+}
+
+export interface UserInfo {
+  email: string;
+  nickName: string;
+  profileUrl?: string;
+  role: UserRole;
 }

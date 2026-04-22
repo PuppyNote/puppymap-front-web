@@ -1,10 +1,16 @@
 export const storageService = {
-  getAccessToken: () => localStorage.getItem('accessToken'),
-  getRefreshToken: () => localStorage.getItem('refreshToken'),
-  saveAccessToken: (token: string) => localStorage.setItem('accessToken', token),
-  saveRefreshToken: (token: string) => localStorage.setItem('refreshToken', token),
+  getAccessToken: () => sessionStorage.getItem('accessToken'),
+  getRefreshToken: () => sessionStorage.getItem('refreshToken'),
+  getUser: () => {
+    const user = sessionStorage.getItem('user');
+    return user ? JSON.parse(user) : null;
+  },
+  saveAccessToken: (token: string) => sessionStorage.setItem('accessToken', token),
+  saveRefreshToken: (token: string) => sessionStorage.setItem('refreshToken', token),
+  saveUser: (user: any) => sessionStorage.setItem('user', JSON.stringify(user)),
   clearTokens: () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
+    sessionStorage.removeItem('accessToken');
+    sessionStorage.removeItem('refreshToken');
+    sessionStorage.removeItem('user');
   },
 };
