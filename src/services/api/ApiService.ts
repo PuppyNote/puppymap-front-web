@@ -1,4 +1,5 @@
-import axios, { AxiosInstance, AxiosResponse, AxiosError, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosError } from 'axios';
+import type { AxiosInstance, AxiosResponse, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 import { storageService } from '../auth/StorageService';
 
 const BASE_URL = import.meta.env.VITE_API_URL;
