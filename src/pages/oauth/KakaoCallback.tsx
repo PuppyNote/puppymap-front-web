@@ -18,15 +18,16 @@ const KakaoCallback = () => {
 
   const handleKakaoLogin = async (code: string) => {
     try {
-      // 1. 카카오 토큰 API를 통해 code를 access_token으로 교환
-      const KAKAO_KEY = import.meta.env.VITE_KAKAO_MAP_API_KEY
+      const KAKAO_REST_KEY = import.meta.env.VITE_KAKAO_REST_API_KEY
       const REDIRECT_URI = `${window.location.origin}/oauth/kakao`
       
+      console.log('Exchanging code for token...', { REDIRECT_URI })
+
       const tokenResponse = await axios.post(
         'https://kauth.kakao.com/oauth/token',
         new URLSearchParams({
           grant_type: 'authorization_code',
-          client_id: KAKAO_KEY,
+          client_id: KAKAO_REST_KEY,
           redirect_uri: REDIRECT_URI,
           code: code,
         }),
@@ -38,6 +39,7 @@ const KakaoCallback = () => {
       )
 
       const accessToken = tokenResponse.data.access_token
+      console.log('Token exchange success, sending to server...')
 
       // 2. 발급받은 실제 access_token을 우리 서버로 전송
       const res = await authApi.oauthLogin({
@@ -48,9 +50,11 @@ const KakaoCallback = () => {
       })
 
       if (res.statusCode === 200) {
-        login(res.data.accessToken, res.data.refreshToken, {
-          email: res.data.email,
-          nickName: '카카오 사용자'
+        const { accessToken, refreshToken, email: userEmail, role } = res.data as any
+        login(accessToken, refreshToken, {
+          email: userEmail,
+          nickName: '카카오 사용자',
+          role: role || 'USER'
         })
         navigate('/')
       }

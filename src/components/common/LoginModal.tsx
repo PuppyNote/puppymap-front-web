@@ -18,7 +18,13 @@ export const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
     try {
       const res = await authApi.login({ email, password, deviceId: 'web-browser', pushKey: '' })
       if (res.statusCode === 200) {
-        login(res.data.accessToken, res.data.refreshToken, { email: res.data.email, nickName: '사용자' })
+        // API 응답 구조: { email, accessToken, refreshToken, role ... }
+        const { accessToken, refreshToken, email: userEmail, role } = res.data as any
+        login(accessToken, refreshToken, { 
+          email: userEmail, 
+          nickName: '사용자', 
+          role: role || 'USER' 
+        })
         onClose()
       }
     } catch (err) {
@@ -27,9 +33,9 @@ export const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
   }
 
   const handleKakaoLogin = () => {
-    const KAKAO_KEY = import.meta.env.VITE_KAKAO_MAP_API_KEY
+    const KAKAO_REST_KEY = import.meta.env.VITE_KAKAO_REST_API_KEY
     const REDIRECT_URI = `${window.location.origin}/oauth/kakao`
-    window.location.href = `https://kauth.kakao.com/oauth/authorize?client_id=${KAKAO_KEY}&redirect_uri=${REDIRECT_URI}&response_type=code`
+    window.location.href = `https://kauth.kakao.com/oauth/authorize?client_id=${KAKAO_REST_KEY}&redirect_uri=${REDIRECT_URI}&response_type=code`
   }
 
   return (
