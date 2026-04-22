@@ -44,7 +44,7 @@ export const usePlaceStore = create<PlaceState>((set, get) => ({
   setSelectedPlace: (place) => set({ selectedPlace: place }),
 
   toggleLike: async (placeId) => {
-    const { places, topPlaces, selectedPlace } = get()
+    const { places } = get()
     const place = places.find(p => p.id === placeId)
     if (!place) return
 
