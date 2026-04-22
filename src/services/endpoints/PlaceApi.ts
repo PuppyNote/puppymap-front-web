@@ -1,5 +1,5 @@
 import { apiService } from '../api/ApiService';
-import { Place, Review, Category } from '../../types';
+import type { Place, Review, Category } from '../../types';
 
 export const placeApi = {
   // 장소 목록 조회 (필터 포함)
