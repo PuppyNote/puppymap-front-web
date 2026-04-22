@@ -1,4 +1,12 @@
 export type Category = 'PARK' | 'TRAIL' | 'CAFE' | 'ETC';
+
+export const CATEGORY_LABELS: Record<Category, string> = {
+  PARK: '공원',
+  TRAIL: '산책로',
+  CAFE: '카페',
+  ETC: '기타',
+};
+
 export type PlaceStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface Place {

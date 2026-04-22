@@ -3,17 +3,21 @@ import { Search, Heart, User, Navigation, Plus, Star, MapPin, LogOut } from 'luc
 import { useState, useEffect } from 'react'
 import { usePlaceStore } from '../store/usePlaceStore'
 import { useAuthStore } from '../store/useAuthStore'
-import type { Place } from '../types'
+import type { Place, Category } from '../types'
+import { CATEGORY_LABELS } from '../types'
 import { LoginModal } from '../components/common/LoginModal'
 import { ReportPlaceModal } from '../components/common/ReportPlaceModal'
 
 const MapPage = () => {
   const [searchKeyword, setSearchKeyword] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState<Category | 'ALL'>('ALL')
   const [map, setMap] = useState<kakao.maps.Map>()
   const [currentPosition, setCurrentPosition] = useState<{ lat: number; lng: number }>({ lat: 37.5665, lng: 126.978 })
   
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
+  const [isSelectingLocation, setIsSelectingLocation] = useState(false)
+  const [tempReportPosition, setTempReportPosition] = useState<{ lat: number; lng: number } | null>(null)
 
   const { topPlaces, places, selectedPlace, isLoading, fetchPlaces, setSelectedPlace, toggleLike } = usePlaceStore()
   const { isLoggedIn, logout, user } = useAuthStore()
@@ -36,12 +40,33 @@ const MapPage = () => {
     }
   }, [fetchPlaces])
 
+  // 필터나 검색어가 바뀔 때 호출
+  useEffect(() => {
+    if (map) {
+      fetchPlaces(
+        searchKeyword, 
+        map.getCenter().getLat(), 
+        map.getCenter().getLng()
+      )
+    }
+  }, [selectedCategory])
+
   const handleMapIdle = (map: kakao.maps.Map) => {
     if (timer) clearTimeout(timer)
     const newTimer = setTimeout(() => {
       fetchPlaces(searchKeyword, map.getCenter().getLat(), map.getCenter().getLng())
     }, 2000)
     setTimer(newTimer)
+  }
+
+  const handleMapClick = (_t: any, mouseEvent: kakao.maps.event.MouseEvent) => {
+    if (isSelectingLocation) {
+      const latlng = mouseEvent.latLng
+      setTempReportPosition({
+        lat: latlng.getLat(),
+        lng: latlng.getLng()
+      })
+    }
   }
 
   const handleSearch = (e: React.FormEvent) => {
@@ -53,8 +78,34 @@ const MapPage = () => {
     if (map) map.setCenter(new kakao.maps.LatLng(currentPosition.lat, currentPosition.lng))
   }
 
+  const handleConfirmReportLocation = () => {
+    if (tempReportPosition) {
+      setIsReportModalOpen(true)
+      setIsSelectingLocation(false)
+    }
+  }
+
+  // 카테고리 필터링된 리스트 (서버 필터링이 안된 경우를 대비한 프론트 필터링 예시)
+  const filteredPlaces = selectedCategory === 'ALL' 
+    ? topPlaces 
+    : topPlaces.filter(p => p.category === selectedCategory)
+
   return (
     <div className={S.container}>
+      {isSelectingLocation && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[50] flex flex-col items-center space-y-3">
+          <div className="bg-black/80 text-white px-6 py-3 rounded-full shadow-2xl backdrop-blur-md animate-bounce">
+            <span className="font-bold">제보할 장소를 지도에서 클릭해주세요!</span>
+          </div>
+          <div className="flex space-x-2">
+            <button onClick={() => setIsSelectingLocation(false)} className="bg-white text-gray-500 px-5 py-2.5 rounded-2xl font-bold shadow-xl hover:bg-gray-50 transition-all">취소</button>
+            {tempReportPosition && (
+              <button onClick={handleConfirmReportLocation} className="bg-[#FFB800] text-white px-5 py-2.5 rounded-2xl font-bold shadow-xl hover:shadow-[#FFB800]/30 transition-all">이 위치로 제보하기</button>
+            )}
+          </div>
+        </div>
+      )}
+
       <aside className={S.sidebar}>
         <div className={S.sidebarHeader}>
           <div className={S.logoWrapper}>
@@ -63,46 +114,50 @@ const MapPage = () => {
               <span className={S.logoText}>PUPPYMAP</span>
             </div>
             <div className="flex space-x-2">
-              {isLoggedIn ? (
-                <div className="flex items-center space-x-2">
-                  <span className={S.userName}>{user?.nickName}님</span>
-                  <button onClick={logout} className={S.logoutButton}><LogOut size={18} /></button>
-                </div>
-              ) : (
-                <button onClick={() => setIsLoginModalOpen(true)} className={S.iconButton}><User size={20} /></button>
-              )}
+              <button onClick={() => !isLoggedIn && setIsLoginModalOpen(true)} className={S.iconButton}>
+                <User size={20} className={isLoggedIn ? "text-[#FFB800]" : "text-gray-600"} />
+              </button>
             </div>
           </div>
           
-          <form onSubmit={handleSearch} className="relative group">
-            <input
-              type="text"
-              value={searchKeyword}
-              onChange={(e) => setSearchKeyword(e.target.value)}
-              placeholder="산책하기 좋은 곳을 찾아보세요"
-              className={S.searchInput}
-            />
+          <form onSubmit={handleSearch} className="relative group mb-4">
+            <input type="text" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} placeholder="산책하기 좋은 곳을 찾아보세요" className={S.searchInput} />
             <Search className={S.searchIcon} size={20} />
           </form>
+
+          {/* Category Filter Bar */}
+          <div className="flex space-x-2 overflow-x-auto no-scrollbar pb-1">
+            <button 
+              onClick={() => setSelectedCategory('ALL')}
+              className={`${S.filterBadge} ${selectedCategory === 'ALL' ? S.filterBadgeActive : S.filterBadgeInactive}`}
+            >
+              전체
+            </button>
+            {(Object.keys(CATEGORY_LABELS) as Category[]).map((cat) => (
+              <button 
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`${S.filterBadge} ${selectedCategory === cat ? S.filterBadgeActive : S.filterBadgeInactive}`}
+              >
+                {CATEGORY_LABELS[cat]}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className={S.contentArea}>
           {selectedPlace ? (
             <div className="animate-in slide-in-from-left duration-300">
-              <button onClick={() => setSelectedPlace(null)} className={S.backButton}>
-                ← 리스트로 돌아가기
-              </button>
+              <button onClick={() => setSelectedPlace(null)} className={S.backButton}>← 리스트로 돌아가기</button>
               <div className={S.detailCard}>
-                <img 
-                  src={selectedPlace.imageUrls?.[0] || 'https://via.placeholder.com/300?text=PuppyMap'} 
-                  className={S.detailImage} 
-                  alt={selectedPlace.title} 
-                />
-                <h2 className={S.detailTitle}>{selectedPlace.title}</h2>
-                <div className={S.detailAddr}>
-                  <MapPin size={14} className="mr-1" />
-                  <span className="truncate">{selectedPlace.content}</span>
+                <div className="flex items-center space-x-2 mb-4">
+                  <span className="text-[10px] font-bold px-2 py-1 bg-orange-100 text-[#FFB800] rounded-lg">
+                    {CATEGORY_LABELS[selectedPlace.category]}
+                  </span>
                 </div>
+                <img src={selectedPlace.imageUrls?.[0] || 'https://via.placeholder.com/300?text=PuppyMap'} className={S.detailImage} alt={selectedPlace.title} />
+                <h2 className={S.detailTitle}>{selectedPlace.title}</h2>
+                <div className={S.detailAddr}><MapPin size={14} className="mr-1" /><span className="truncate">{selectedPlace.content}</span></div>
                 
                 <div className="grid grid-cols-3 gap-2 mb-6">
                   <Tag active={selectedPlace.largeDogAvailable} label="대형견" color="orange" />
@@ -110,10 +165,7 @@ const MapPage = () => {
                   <Tag active={selectedPlace.offLeashAvailable} label="오프리쉬" color="green" />
                 </div>
 
-                <button 
-                  onClick={() => !isLoggedIn ? setIsLoginModalOpen(true) : toggleLike(selectedPlace.id)}
-                  className={S.primaryButton}
-                >
+                <button onClick={() => !isLoggedIn ? setIsLoginModalOpen(true) : toggleLike(selectedPlace.id)} className={S.primaryButton}>
                   <Heart size={20} fill={selectedPlace.likeCount > 0 ? "white" : "transparent"} />
                   <span>좋아요 {selectedPlace.likeCount}</span>
                 </button>
@@ -122,21 +174,18 @@ const MapPage = () => {
           ) : (
             <div>
               <div className={S.sectionTitleRow}>
-                <h2 className={S.sectionTitle}>
-                  <Star size={18} className="text-[#FFB800] fill-[#FFB800] mr-2" />
-                  인기 산책 장소 Top 20
-                </h2>
+                <h2 className={S.sectionTitle}><Star size={18} className="text-[#FFB800] fill-[#FFB800] mr-2" />인기 산책 장소 Top 20</h2>
                 {isLoading && <div className={S.loadingSpinner} />}
               </div>
               
               <div className="space-y-4 pb-20">
-                {topPlaces.length > 0 ? topPlaces.map((place, index) => (
+                {filteredPlaces.length > 0 ? filteredPlaces.map((place, index) => (
                   <div key={place.id} onClick={() => setSelectedPlace(place)} className={S.placeCard}>
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <div className="flex items-center space-x-2 mb-1.5">
                           <span className={S.rankBadge}>NO.{index + 1}</span>
-                          <span className={S.categoryText}>{place.category}</span>
+                          <span className={S.categoryText}>{CATEGORY_LABELS[place.category]}</span>
                         </div>
                         <h3 className={S.placeTitle}>{place.title}</h3>
                         <p className={S.placeDesc}>{place.content}</p>
@@ -148,7 +197,7 @@ const MapPage = () => {
                     </div>
                   </div>
                 )) : (
-                  <div className={S.emptyState}>주변에 등록된 장소가 없습니다.</div>
+                  <div className={S.emptyState}>해당 카테고리의 장소가 없습니다.</div>
                 )}
               </div>
             </div>
@@ -157,16 +206,19 @@ const MapPage = () => {
       </aside>
 
       <main className={S.mapMain}>
-        <Map center={currentPosition} style={{ width: '100%', height: '100%' }} level={3} onCreate={setMap} onIdle={handleMapIdle}>
+        <Map center={currentPosition} style={{ width: '100%', height: '100%' }} level={3} onCreate={setMap} onIdle={handleMapIdle} onClick={handleMapClick}>
           <MapMarker position={currentPosition} image={{ src: "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png", size: { width: 24, height: 35 } }} title="내 위치" />
+          {isSelectingLocation && tempReportPosition && (
+            <MapMarker position={tempReportPosition} image={{ src: "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/marker_red.png", size: { width: 31, height: 35 } }} />
+          )}
           {places.map((place) => (
-            <MapMarker key={place.id} position={{ lat: place.latitude, lng: place.longitude }} onClick={() => setSelectedPlace(place)} />
+            <MapMarker key={place.id} position={{ lat: place.latitude, lng: place.longitude }} onClick={() => !isSelectingLocation && setSelectedPlace(place)} />
           ))}
         </Map>
         
         <div className={S.floatingControls}>
           <button onClick={handleMoveToCurrentLocation} className={S.navButton}><Navigation size={24} className="fill-[#FFB800] text-[#FFB800]" /></button>
-          <button onClick={() => !isLoggedIn ? setIsLoginModalOpen(true) : setIsReportModalOpen(true)} className={S.reportButton}>
+          <button onClick={() => !isLoggedIn ? setIsLoginModalOpen(true) : setIsSelectingLocation(true)} className={S.reportButton}>
             <Plus size={24} strokeWidth={3} />
             <span className="text-lg">장소 제보</span>
           </button>
@@ -174,12 +226,7 @@ const MapPage = () => {
       </main>
 
       <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
-      <ReportPlaceModal 
-        isOpen={isReportModalOpen} 
-        onClose={() => setIsReportModalOpen(false)} 
-        position={map ? { lat: map.getCenter().getLat(), lng: map.getCenter().getLng() } : currentPosition}
-        onSuccess={() => map && handleMapIdle(map)}
-      />
+      <ReportPlaceModal isOpen={isReportModalOpen} onClose={() => setIsReportModalOpen(false)} position={map ? { lat: map.getCenter().getLat(), lng: map.getCenter().getLng() } : currentPosition} onSuccess={() => map && handleMapIdle(map)} />
     </div>
   )
 }
@@ -193,7 +240,6 @@ const Tag = ({ active, label, color }: { active: boolean, label: string, color: 
   return <div className={`p-2 rounded-xl text-center text-[10px] font-bold ${colors[color]}`}>{label}</div>
 }
 
-// --- Styles ---
 const S = {
   container: "flex h-screen w-full overflow-hidden bg-white font-sans text-gray-900",
   sidebar: "w-[380px] h-full flex flex-col border-r border-gray-100 z-10 shadow-2xl bg-white relative",
@@ -228,6 +274,9 @@ const S = {
   floatingControls: "absolute bottom-10 right-10 z-20 flex flex-col space-y-4 items-end",
   navButton: "bg-white p-4 rounded-2xl shadow-xl hover:bg-gray-50 transition-all transform hover:scale-110 border border-gray-100",
   reportButton: "bg-[#FFB800] text-white px-8 py-4 rounded-3xl shadow-xl hover:shadow-[#FFB800]/20 transition-all transform hover:scale-105 font-bold flex items-center space-x-2",
+  filterBadge: "px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap border-2",
+  filterBadgeActive: "bg-[#FFB800] border-[#FFB800] text-white shadow-md",
+  filterBadgeInactive: "bg-white border-gray-50 text-gray-400 hover:border-gray-200",
 }
 
 export default MapPage
