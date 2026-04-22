@@ -8,10 +8,12 @@ const KakaoCallback = () => {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const login = useAuthStore(state => state.login)
+  const hasCalled = useRef(false) // 중복 호출 방지용
 
   useEffect(() => {
     const code = searchParams.get('code')
-    if (code) {
+    if (code && !hasCalled.current) {
+      hasCalled.current = true
       handleKakaoLogin(code)
     }
   }, [searchParams])
@@ -60,9 +62,14 @@ const KakaoCallback = () => {
         })
         navigate('/')
       }
-    } catch (err) {
-      console.error('Kakao login failed:', err)
-      alert('로그인에 실패했습니다.')
+    } catch (err: any) {
+      if (err.response) {
+        console.error('Kakao API Error Details:', err.response.data)
+        alert(`로그인 오류: ${err.response.data.error_description || '알 수 없는 오류'}`)
+      } else {
+        console.error('Kakao login failed:', err)
+        alert('네트워크 오류가 발생했습니다.')
+      }
       navigate('/')
     }
   }
