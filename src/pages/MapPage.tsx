@@ -3,8 +3,7 @@ import { Search, Heart, User, Navigation, Plus, Star, MapPin, Menu, X, LogOut, S
 import { useState, useEffect, useRef } from 'react'
 import { usePlaceStore } from '../store/usePlaceStore'
 import { useAuthStore } from '../store/useAuthStore'
-import { userApi } from '../services/endpoints/UserApi'
-import type { Category } from '../types'
+import type { Place, Category } from '../types'
 import { CATEGORY_LABELS } from '../types'
 import { LoginModal } from '../components/common/LoginModal'
 import { ReportPlaceModal } from '../components/common/ReportPlaceModal'
@@ -29,7 +28,7 @@ const MapPage = () => {
   const scrollLeft = useRef(0)
 
   const { topPlaces, places, selectedPlace, isLoading, fetchPlaces, setSelectedPlace, toggleLike } = usePlaceStore()
-  const { isLoggedIn, logout, user, syncUser } = useAuthStore()
+  const { isLoggedIn, logout, user } = useAuthStore()
   const [timer, setTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -41,28 +40,6 @@ const MapPage = () => {
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
-
-  useEffect(() => {
-    const verifyIdentity = async () => {
-      if (isLoggedIn) {
-        try {
-          const res = await userApi.getProfile()
-          if (res.statusCode === 200) {
-            const serverUser = res.data
-            if (user && serverUser.role !== user.role) {
-              alert('보안 정책상 권한 정보가 변경되어 로그아웃됩니다.')
-              logout()
-              return
-            }
-            syncUser(serverUser)
-          }
-        } catch (err) {
-          logout()
-        }
-      }
-    }
-    verifyIdentity()
-  }, [isLoggedIn])
 
   useEffect(() => {
     const defaultPos = { lat: 37.5665, lng: 126.978 }
