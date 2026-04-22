@@ -19,6 +19,7 @@ const KakaoCallback = () => {
   const handleKakaoLogin = async (code: string) => {
     try {
       const KAKAO_REST_KEY = import.meta.env.VITE_KAKAO_REST_API_KEY
+      const KAKAO_SECRET = import.meta.env.VITE_KAKAO_CLIENT_SECRET
       const REDIRECT_URI = `${window.location.origin}/oauth/kakao`
       
       console.log('Exchanging code for token...', { REDIRECT_URI })
@@ -28,6 +29,7 @@ const KakaoCallback = () => {
         new URLSearchParams({
           grant_type: 'authorization_code',
           client_id: KAKAO_REST_KEY,
+          client_secret: KAKAO_SECRET, // 이 부분 추가
           redirect_uri: REDIRECT_URI,
           code: code,
         }),
