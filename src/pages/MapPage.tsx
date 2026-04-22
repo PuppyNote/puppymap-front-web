@@ -1,16 +1,24 @@
 import { Map, MapMarker } from 'react-kakao-maps-sdk'
-import { Search, Heart, User, Navigation, Plus, Star, MapPin } from 'lucide-react'
+import { Search, Heart, User, Navigation, Plus, Star, MapPin, LogOut } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { usePlaceStore } from '../store/usePlaceStore'
+import { useAuthStore } from '../store/useAuthStore'
 import type { Place } from '../types'
+import { LoginModal } from '../components/common/LoginModal'
+import { ReportPlaceModal } from '../components/common/ReportPlaceModal'
 
 const MapPage = () => {
   const [searchKeyword, setSearchKeyword] = useState('')
   const [map, setMap] = useState<kakao.maps.Map>()
-  // 초기값을 서울시청으로 설정하여 GPS 대기 중에도 화면이 뜨게 함
   const [currentPosition, setCurrentPosition] = useState<{ lat: number; lng: number }>({ lat: 37.5665, lng: 126.978 })
   
+  // Modal states
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false)
+
   const { topPlaces, places, selectedPlace, isLoading, fetchPlaces, setSelectedPlace, toggleLike } = usePlaceStore()
+  const { isLoggedIn, logout, user } = useAuthStore()
+  const [timer, setTimer] = useState<NodeJS.Timeout | null>(null)
 
   // 현재 위치 가져오기
   useEffect(() => {
@@ -37,14 +45,37 @@ const MapPage = () => {
     }
   }, [fetchPlaces])
 
+  // 지도가 멈췄을 때 실행되는 함수
+  const handleMapIdle = (map: kakao.maps.Map) => {
+    if (timer) clearTimeout(timer)
+    const newTimer = setTimeout(() => {
+      const center = map.getCenter()
+      const lat = center.getLat()
+      const lng = center.getLng()
+      fetchPlaces(searchKeyword, lat, lng)
+    }, 2000)
+    setTimer(newTimer)
+  }
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    fetchPlaces(searchKeyword, currentPosition.lat, currentPosition.lng)
+    if (map) {
+      const center = map.getCenter()
+      fetchPlaces(searchKeyword, center.getLat(), center.getLng())
+    }
   }
 
   const handleMoveToCurrentLocation = () => {
     if (map) {
       map.setCenter(new kakao.maps.LatLng(currentPosition.lat, currentPosition.lng))
+    }
+  }
+
+  const handleReportClick = () => {
+    if (!isLoggedIn) {
+      setIsLoginModalOpen(true)
+    } else {
+      setIsReportModalOpen(true)
     }
   }
 
@@ -55,11 +86,23 @@ const MapPage = () => {
         {/* Header with Logo */}
         <div className="p-6 pb-4">
           <div className="flex items-center justify-between mb-6">
-            <img src="/logo.png" alt="PuppyNote Logo" className="h-8 object-contain" onError={(e) => (e.currentTarget.src = 'https://api.puppynote.co.kr/web/logo.png')} />
+            <div className="flex items-center space-x-2">
+              <img src="/puppynote-icon.png" alt="PuppyMap Logo" className="h-10 w-10 object-contain rounded-xl shadow-sm" />
+              <span className="font-black text-2xl tracking-tighter text-[#FFB800]">PUPPYMAP</span>
+            </div>
             <div className="flex space-x-2">
-              <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                <User size={20} className="text-gray-600" />
-              </button>
+              {isLoggedIn ? (
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs font-bold text-gray-500">{user?.nickName}님</span>
+                  <button onClick={logout} className="p-2.5 bg-gray-50 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-2xl transition-colors">
+                    <LogOut size={18} />
+                  </button>
+                </div>
+              ) : (
+                <button onClick={() => setIsLoginModalOpen(true)} className="p-2.5 bg-gray-50 hover:bg-gray-100 rounded-2xl transition-colors">
+                  <User size={20} className="text-gray-600" />
+                </button>
+              )}
             </div>
           </div>
           
@@ -69,7 +112,7 @@ const MapPage = () => {
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
               placeholder="산책하기 좋은 곳을 찾아보세요"
-              className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl focus:bg-white focus:ring-2 focus:ring-[#FFB800] focus:border-transparent transition-all outline-none shadow-sm"
+              className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:ring-2 focus:ring-[#FFB800] focus:border-transparent transition-all outline-none shadow-sm"
             />
             <Search className="absolute left-4 top-4 text-gray-400 group-focus-within:text-[#FFB800] transition-colors" size={20} />
           </form>
@@ -97,18 +140,24 @@ const MapPage = () => {
                   <span className="truncate">{selectedPlace.content}</span>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-3 mb-6">
-                  <div className={`p-3 rounded-xl text-center text-xs font-bold ${selectedPlace.largeDogAvailable ? 'bg-orange-50 text-orange-600' : 'bg-gray-50 text-gray-400'}`}>
-                    대형견 가능
+                <div className="grid grid-cols-3 gap-2 mb-6">
+                  <div className={`p-2 rounded-xl text-center text-[10px] font-bold ${selectedPlace.largeDogAvailable ? 'bg-orange-50 text-orange-600' : 'bg-gray-50 text-gray-400'}`}>
+                    대형견
                   </div>
-                  <div className={`p-3 rounded-xl text-center text-xs font-bold ${selectedPlace.parkingAvailable ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-400'}`}>
-                    주차 가능
+                  <div className={`p-2 rounded-xl text-center text-[10px] font-bold ${selectedPlace.parkingAvailable ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-400'}`}>
+                    주차
+                  </div>
+                  <div className={`p-2 rounded-xl text-center text-[10px] font-bold ${selectedPlace.offLeashAvailable ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-400'}`}>
+                    오프리쉬
                   </div>
                 </div>
 
                 <div className="flex space-x-3">
                   <button 
-                    onClick={() => toggleLike(selectedPlace.id)}
+                    onClick={() => {
+                      if(!isLoggedIn) return setIsLoginModalOpen(true)
+                      toggleLike(selectedPlace.id)
+                    }}
                     className="flex-1 py-4 bg-[#FFB800] text-white rounded-2xl font-bold hover:shadow-lg transition-all flex items-center justify-center space-x-2"
                   >
                     <Heart size={20} fill={selectedPlace.likeCount > 0 ? "white" : "transparent"} />
@@ -127,7 +176,7 @@ const MapPage = () => {
                 {isLoading && <div className="animate-spin rounded-full h-4 w-4 border-2 border-[#FFB800] border-t-transparent" />}
               </div>
               
-              <div className="space-y-4">
+              <div className="space-y-4 pb-20">
                 {topPlaces.length > 0 ? topPlaces.map((place, index) => (
                   <div 
                     key={place.id}
@@ -171,8 +220,8 @@ const MapPage = () => {
           style={{ width: '100%', height: '100%' }}
           level={3}
           onCreate={setMap}
+          onIdle={handleMapIdle}
         >
-          {/* 현재 위치 마커 */}
           <MapMarker
             position={currentPosition}
             image={{
@@ -182,7 +231,6 @@ const MapPage = () => {
             title="내 위치"
           />
 
-          {/* 장소 마커들 */}
           {places.map((place) => (
             <MapMarker
               key={place.id}
@@ -201,12 +249,26 @@ const MapPage = () => {
             <Navigation size={24} className="fill-[#FFB800] text-[#FFB800]" />
           </button>
 
-          <button className="bg-[#FFB800] text-white px-8 py-4 rounded-3xl shadow-xl hover:shadow-[#FFB800]/20 transition-all transform hover:scale-105 font-bold flex items-center space-x-2">
+          <button 
+            onClick={handleReportClick}
+            className="bg-[#FFB800] text-white px-8 py-4 rounded-3xl shadow-xl hover:shadow-[#FFB800]/20 transition-all transform hover:scale-105 font-bold flex items-center space-x-2"
+          >
             <Plus size={24} strokeWidth={3} />
             <span className="text-lg">장소 제보</span>
           </button>
         </div>
       </main>
+
+      {/* Modals */}
+      <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
+      <ReportPlaceModal 
+        isOpen={isReportModalOpen} 
+        onClose={() => setIsReportModalOpen(false)} 
+        position={map ? { lat: map.getCenter().getLat(), lng: map.getCenter().getLng() } : currentPosition}
+        onSuccess={() => {
+          if(map) handleMapIdle(map)
+        }}
+      />
     </div>
   )
 }
