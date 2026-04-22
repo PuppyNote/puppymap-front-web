@@ -3,7 +3,7 @@ import { Search, Heart, User, Navigation, Plus, Star, MapPin, Menu, X, LogOut, S
 import { useState, useEffect, useRef } from 'react'
 import { usePlaceStore } from '../store/usePlaceStore'
 import { useAuthStore } from '../store/useAuthStore'
-import type { Place, Category } from '../types'
+import type { Category } from '../types'
 import { CATEGORY_LABELS } from '../types'
 import { LoginModal } from '../components/common/LoginModal'
 import { ReportPlaceModal } from '../components/common/ReportPlaceModal'
