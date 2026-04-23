@@ -8,7 +8,9 @@ interface PlaceState {
   selectedPlace: Place | null
   isLoading: boolean
   
-  fetchPlaces: (keyword?: string, lat?: number, lng?: number) => Promise<void>
+  fetchPlaces: (keyword?: string, lat?: number, lng?: number, radius?: number, category?: Category | 'ALL') => Promise<void>
+  fetchTopPlaces: (lat: number, lng: number, radius?: number, category?: Category | 'ALL') => Promise<void>
+  deletePlace: (placeId: number) => Promise<void>
   setSelectedPlace: (place: Place | null) => void
   toggleLike: (placeId: number) => Promise<void>
 }
@@ -19,47 +21,66 @@ export const usePlaceStore = create<PlaceState>((set, get) => ({
   selectedPlace: null,
   isLoading: false,
 
-  fetchPlaces: async (keyword, lat, lng) => {
+  fetchPlaces: async (keyword, lat, lng, radius, category) => {
     set({ isLoading: true })
     try {
       let response;
       if (lat && lng) {
-        // 좌표가 있으면 위치 기반 검색 API 호출 (키워드가 없으면 빈 문자열 전달)
-        response = await placeApi.searchPlaces(keyword || '', lat, lng)
+        const catParam = category === 'ALL' ? undefined : category
+        response = await placeApi.searchPlaces(keyword || '', lat, lng, radius, catParam)
       } else {
-        // 좌표가 없으면 일반 목록 조회
         response = await placeApi.getPlaces()
       }
-      
-      const places = response.data
-      const topPlaces = [...places].sort((a, b) => b.likeCount - a.likeCount).slice(0, 20)
-      
-      set({ places, topPlaces, isLoading: false })
+      set({ places: response.data, isLoading: false })
     } catch (error) {
       console.error('Fetch places failed:', error)
-      set({ isLoading: false, places: [], topPlaces: [] })
+      set({ isLoading: false, places: [] })
+    }
+  },
+
+  fetchTopPlaces: async (lat, lng, radius, category) => {
+    try {
+      const catParam = category === 'ALL' ? undefined : category
+      const response = await placeApi.getNearbyTopPlaces(lat, lng, radius, catParam)
+      set({ topPlaces: response.data })
+    } catch (error) {
+      console.error('Fetch top places failed:', error)
+      set({ topPlaces: [] })
+    }
+  },
+
+  deletePlace: async (placeId) => {
+    try {
+      await placeApi.deletePlace(placeId)
+      const { places, topPlaces, selectedPlace } = get()
+      set({
+        places: places.filter(p => p.id !== placeId),
+        topPlaces: topPlaces.filter(p => p.id !== placeId),
+        selectedPlace: selectedPlace?.id === placeId ? null : selectedPlace
+      })
+    } catch (error) {
+      console.error('Delete place failed:', error)
+      throw error
     }
   },
 
   setSelectedPlace: (place) => set({ selectedPlace: place }),
 
   toggleLike: async (placeId) => {
-    const { places } = get()
-    const place = places.find(p => p.id === placeId)
-    if (!place) return
-
+    const { places, topPlaces } = get()
+    
     try {
-      // 낙관적 업데이트를 고려할 수 있으나 여기서는 단순 처리
       await placeApi.likePlace(placeId)
-      // 실제 프로젝트에서는 유저의 좋아요 여부에 따라 unlike/like 분기 필요
       
-      // 상태 갱신을 위해 다시 페치하거나 수동 업데이트
-      const updatedPlaces = places.map(p => 
-        p.id === placeId ? { ...p, likeCount: p.likeCount + 1 } : p
-      )
+      const updateList = (list: Place[]) => 
+        list.map(p => p.id === placeId ? { ...p, likeCount: p.likeCount + 1 } : p)
+
+      const updatedPlaces = updateList(places)
+      const updatedTopPlaces = updateList(topPlaces)
+
       set({ 
         places: updatedPlaces,
-        topPlaces: [...updatedPlaces].sort((a, b) => b.likeCount - a.likeCount).slice(0, 20)
+        topPlaces: updatedTopPlaces
       })
     } catch (error) {
       console.error('Like toggle failed:', error)

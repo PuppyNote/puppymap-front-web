@@ -1,0 +1,65 @@
+import { MapPin, Heart } from 'lucide-react'
+import type { Place } from '../../types'
+import { CATEGORY_LABELS } from '../../types'
+
+interface PlaceDetailCardProps {
+  place: Place
+  isLoggedIn: boolean
+  onLoginRequired: () => void
+  onToggleLike: (placeId: number) => void
+}
+
+export const PlaceDetailCard = ({ 
+  place, 
+  isLoggedIn, 
+  onLoginRequired, 
+  onToggleLike 
+}: PlaceDetailCardProps) => {
+  return (
+    <div className="bg-white p-0 lg:p-0 mb-6 lg:mb-0">
+      <div className="flex items-center space-x-2 mb-4">
+        <span className="text-[10px] font-bold px-2 py-1 bg-orange-100 text-[#FFB800] rounded-lg">
+          {CATEGORY_LABELS[place.category]}
+        </span>
+      </div>
+      
+      {place.imageUrls && place.imageUrls.length > 0 && (
+        <img 
+          src={place.imageUrls[0]} 
+          className="w-full h-48 lg:h-64 object-cover rounded-2xl mb-4" 
+          alt={place.title} 
+        />
+      )}
+      
+      <h2 className="text-2xl font-bold mb-2">{place.title}</h2>
+      
+      <div className="flex items-center text-sm text-gray-500 mb-4">
+        <MapPin size={14} className="mr-1" />
+        <span className="truncate">{place.content}</span>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 mb-6">
+        <Tag active={place.largeDogAvailable} label="대형견" color="orange" />
+        <Tag active={place.parkingAvailable} label="주차" color="blue" />
+        <Tag active={place.offLeashAvailable} label="오프리쉬" color="green" />
+      </div>
+
+      <button 
+        onClick={() => !isLoggedIn ? onLoginRequired() : onToggleLike(place.id)} 
+        className="w-full py-4 bg-[#FFB800] text-white rounded-2xl font-bold hover:shadow-lg transition-all flex items-center justify-center space-x-2"
+      >
+        <Heart size={20} fill={place.likeCount > 0 ? "white" : "transparent"} />
+        <span>좋아요 {place.likeCount}</span>
+      </button>
+    </div>
+  )
+}
+
+const Tag = ({ active, label, color }: { active: boolean, label: string, color: 'orange' | 'blue' | 'green' }) => {
+  const colors = {
+    orange: active ? 'bg-orange-50 text-orange-600' : 'bg-gray-50 text-gray-400',
+    blue: active ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-400',
+    green: active ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-400'
+  }
+  return <div className={`p-2 rounded-xl text-center text-[10px] font-bold ${colors[color]}`}>{label}</div>
+}

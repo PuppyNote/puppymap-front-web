@@ -11,9 +11,15 @@ export const placeApi = {
     apiService.get<Place>(`/api/v1/places/${placeId}`),
 
   // 장소 검색
-  searchPlaces: (keyword: string, lat: number, lng: number, radius: number = 5.0) =>
+  searchPlaces: (keyword: string, lat: number, lng: number, radius: number = 5.0, category?: Category) =>
     apiService.get<Place[]>('/api/v1/places/search', {
-      params: { keyword, lat, lng, radius },
+      params: { keyword, lat, lng, radius, category },
+    }),
+
+  // 근처 인기 장소 Top20 조회
+  getNearbyTopPlaces: (lat: number, lng: number, radiusKm: number = 5.0, category?: Category) =>
+    apiService.get<Place[]>('/api/v1/places/nearby/top', {
+      params: { lat, lng, radiusKm, category },
     }),
 
   // 장소 제보
@@ -23,6 +29,10 @@ export const placeApi = {
   // 장소 리뷰 목록 조회
   getPlaceReviews: (placeId: number) =>
     apiService.get<Review[]>(`/api/v1/places/${placeId}/reviews`),
+
+  // 장소 삭제
+  deletePlace: (placeId: number) =>
+    apiService.delete<void>(`/api/v1/places/${placeId}`),
 
   // 좋아요
   likePlace: (placeId: number) =>
