@@ -37,9 +37,21 @@ const MapPage = () => {
   const startX = useRef(0)
   const scrollLeft = useRef(0)
 
-  const { topPlaces, places, selectedPlace, isLoading, fetchPlaces, fetchTopPlaces, setSelectedPlace, toggleLike } = usePlaceStore()
+  const { topPlaces, places, selectedPlace, isLoading, fetchPlaces, fetchTopPlaces, setSelectedPlace, toggleLike, deletePlace } = usePlaceStore()
   const { isLoggedIn, logout, user } = useAuthStore()
   const [timer, setTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleDeletePlace = async (placeId: number) => {
+    if (!window.confirm('정말 이 장소를 삭제하시겠습니까?')) return
+    try {
+      await deletePlace(placeId)
+      alert('장소가 삭제되었습니다.')
+      if (window.innerWidth < 1024) handleCloseDetail()
+      else setSelectedPlace(null)
+    } catch (err) {
+      alert('삭제에 실패했습니다.')
+    }
+  }
 
   // 지도를 마커 위치로 이동시키되, 모바일에서는 하단 시트 높이만큼 보정
   const panToPlace = (lat: number, lng: number) => {
@@ -237,7 +249,7 @@ const MapPage = () => {
       <aside className={`
         ${S.sidebar} 
         ${selectedPlace 
-          ? 'h-fit max-h-[85vh] lg:h-full rounded-t-[32px] lg:rounded-none bottom-0 left-0 right-0 top-auto' 
+          ? 'h-[60vh] lg:h-full rounded-t-[32px] lg:rounded-none bottom-0 left-0 right-0 top-auto' 
           : 'h-full top-0 left-0 right-0'}
         ${isSidebarOpen ? 'translate-y-0 lg:translate-x-0' : 'translate-y-full lg:-translate-x-full'}
       `}>
@@ -279,7 +291,7 @@ const MapPage = () => {
 
         <div className={S.contentArea}>
           {selectedPlace ? (
-            <div className="animate-in slide-in-from-bottom lg:slide-in-from-left duration-300 h-full pt-4 lg:pt-0">
+            <div className="animate-in slide-in-from-bottom lg:slide-in-from-left duration-300 min-h-full pt-4 lg:pt-0 pb-20">
               <div className="flex justify-between items-center mb-4">
                 <button onClick={() => setSelectedPlace(null)} className={S.backButton}>
                   <ArrowLeft size={16} className="mr-1" /> TOP 20
@@ -405,7 +417,7 @@ const Tag = ({ active, label, color }: { active: boolean, label: string, color: 
 
 const S = {
   container: "flex h-screen w-full overflow-hidden bg-white font-sans text-gray-900 relative",
-  sidebar: "fixed lg:static w-full lg:w-[380px] flex flex-col border-r border-gray-100 z-[150] shadow-2xl bg-white transition-transform duration-300 ease-in-out",
+  sidebar: "fixed lg:static w-full lg:w-[380px] h-full flex flex-col border-r border-gray-100 z-[150] shadow-2xl bg-white transition-transform duration-300 ease-in-out",
   sidebarHeader: "p-6 pb-4",
   logoWrapper: "flex items-center justify-between mb-6",
   logoContainer: "flex items-center space-x-2",
@@ -414,7 +426,7 @@ const S = {
   iconButton: "p-2.5 bg-gray-50 hover:bg-gray-100 rounded-2xl transition-colors text-gray-600",
   searchInput: "w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:ring-2 focus:ring-[#FFB800] focus:border-transparent transition-all outline-none shadow-sm",
   searchIcon: "absolute left-4 top-4 text-gray-400 group-focus-within:text-[#FFB800] transition-colors",
-  contentArea: "flex-1 overflow-y-auto px-6 py-2 bg-gray-50/50",
+  contentArea: "flex-1 overflow-y-auto px-6 py-2 bg-gray-50/50 min-h-0",
   backButton: "text-sm font-medium text-gray-500 mb-4 flex items-center hover:text-gray-800",
   detailCard: "bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 mb-20 lg:mb-0",
   detailImage: "w-full h-48 lg:h-64 object-cover rounded-2xl mb-4",

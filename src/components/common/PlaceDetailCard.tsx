@@ -38,10 +38,10 @@ export const PlaceDetailCard = ({
         <span className="truncate">{place.content}</span>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 mb-6">
-        <Tag active={place.largeDogAvailable} label="대형견" color="orange" />
-        <Tag active={place.parkingAvailable} label="주차" color="blue" />
-        <Tag active={place.offLeashAvailable} label="오프리쉬" color="green" />
+      <div className="flex flex-wrap gap-2 mb-6">
+        {place.largeDogAvailable && <Tag label="대형견 가능" color="orange" />}
+        {place.parkingAvailable && <Tag label="주차 가능" color="blue" />}
+        {place.offLeashAvailable && <Tag label="오프리쉬" color="green" />}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -67,11 +67,11 @@ export const PlaceDetailCard = ({
   )
 }
 
-const Tag = ({ active, label, color }: { active: boolean, label: string, color: 'orange' | 'blue' | 'green' }) => {
+const Tag = ({ label, color }: { label: string, color: 'orange' | 'blue' | 'green' }) => {
   const colors = {
-    orange: active ? 'bg-orange-50 text-orange-600' : 'bg-gray-50 text-gray-400',
-    blue: active ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-400',
-    green: active ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-400'
+    orange: 'bg-orange-50 text-orange-600 border border-orange-100',
+    blue: 'bg-blue-50 text-blue-600 border border-blue-100',
+    green: 'bg-green-50 text-green-600 border border-green-100'
   }
-  return <div className={`p-2 rounded-xl text-center text-[10px] font-bold ${colors[color]}`}>{label}</div>
+  return <div className={`px-3 py-1.5 rounded-xl text-center text-[10px] font-bold ${colors[color]}`}>{label}</div>
 }
