@@ -14,6 +14,7 @@ import { PlaceListItemCard } from '../components/common/PlaceListItemCard'
 const MapPage = () => {
   const [searchKeyword, setSearchKeyword] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<Category | 'ALL'>('ALL')
+  const [isFavoriteMode, setIsFavoriteMode] = useState(false)
   const [map, setMap] = useState<kakao.maps.Map>()
   const [currentPosition, setCurrentPosition] = useState<{ lat: number; lng: number }>({ lat: 37.5665, lng: 126.978 })
   
@@ -23,21 +24,22 @@ const MapPage = () => {
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false)
   const [isSelectingLocation, setIsSelectingLocation] = useState(false)
   const [tempReportPosition, setTempReportPosition] = useState<{ lat: number; lng: number } | null>(null)
-
-  // 중복 검색 방지용
-  const [lastSearchInfo, setLastSearchInfo] = useState<{
-    lat: number;
-    lng: number;
-    keyword: string;
-    category: Category | 'ALL';
-  } | null>(null)
+// 중복 검색 방지용
+const [lastSearchInfo, setLastSearchInfo] = useState<{
+  lat: number;
+  lng: number;
+  keyword: string;
+  category: Category | 'ALL';
+  isFavoriteMode: boolean;
+  level: number;
+} | null>(null)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
   const startX = useRef(0)
   const scrollLeft = useRef(0)
 
-  const { topPlaces, places, selectedPlace, isLoading, fetchPlaces, fetchTopPlaces, setSelectedPlace, toggleLike, deletePlace } = usePlaceStore()
+  const { topPlaces, places, favorites, selectedPlace, isLoading, fetchPlaces, fetchTopPlaces, fetchFavorites, setSelectedPlace, toggleLike, deletePlace } = usePlaceStore()
   const { isLoggedIn, logout, user } = useAuthStore()
   const [timer, setTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
 
@@ -93,6 +95,9 @@ const MapPage = () => {
   }
 
   const performSearch = (mapObj: kakao.maps.Map, keyword: string, category: Category | 'ALL', force: boolean = false) => {
+    // 즐겨찾기 모드일 때는 검색 안함
+    if (isFavoriteMode) return
+
     const center = mapObj.getCenter()
     const lat = center.getLat()
     const lng = center.getLng()
@@ -116,6 +121,10 @@ const MapPage = () => {
     fetchTopPlaces(lat, lng, 5.0, category) // 인기 장소는 사용자 요청대로 5km 반경 고정
     setLastSearchInfo({ lat, lng, keyword, category, level })
   }
+
+  useEffect(() => {
+    if (isLoggedIn) fetchFavorites()
+  }, [isLoggedIn])
 
   useEffect(() => {
     const handleResize = () => {
@@ -149,8 +158,18 @@ const MapPage = () => {
   }
 
   useEffect(() => {
-    if (map) performSearch(map, searchKeyword, selectedCategory)
-  }, [selectedCategory])
+    if (map) {
+      if (isFavoriteMode) {
+        if (isLoggedIn) fetchFavorites()
+        else {
+          setIsLoginModalOpen(true)
+          setIsFavoriteMode(false)
+        }
+      } else {
+        performSearch(map, searchKeyword, selectedCategory, true)
+      }
+    }
+  }, [selectedCategory, isFavoriteMode, isLoggedIn])
 
   const handleMapIdle = (mapObj: kakao.maps.Map) => {
     if (timer) clearTimeout(timer)
@@ -208,7 +227,7 @@ const MapPage = () => {
     scrollRef.current.scrollLeft = scrollLeft.current - walk
   }
 
-  const filteredPlaces = topPlaces
+  const filteredPlaces = isFavoriteMode ? favorites : topPlaces
 
   return (
     <div className={S.container}>
@@ -226,8 +245,30 @@ const MapPage = () => {
           </div>
           {!selectedPlace && (
             <div ref={scrollRef} onWheel={handleWheel} onMouseDown={onDragStart} onMouseMove={onDragMove} onMouseUp={onDragEnd} onMouseLeave={onDragEnd} className="flex space-x-2 overflow-x-auto no-scrollbar py-2 select-none">
+              <button 
+                onClick={() => {
+                  if (!isLoggedIn) {
+                    setIsLoginModalOpen(true);
+                  } else {
+                    setIsFavoriteMode(!isFavoriteMode);
+                  }
+                }} 
+                className={`${S.filterBadge} ${isFavoriteMode ? 'bg-red-50 border-red-200 text-red-500 shadow-sm' : S.filterBadgeInactive} text-[10px] px-3 py-1.5 flex items-center space-x-1.5`}
+              >
+                <Heart size={14} fill={isFavoriteMode ? "currentColor" : "transparent"} className={isFavoriteMode ? "text-red-500" : "text-gray-400"} />
+                <span className="font-black">즐겨찾기</span>
+              </button>
               {['ALL', ...Object.keys(CATEGORY_LABELS)].map((cat) => (
-                <button key={cat} onClick={() => setSelectedCategory(cat as any)} className={`${S.filterBadge} ${selectedCategory === cat ? S.filterBadgeActive : S.filterBadgeInactive} text-[10px] px-3 py-1.5`}>{cat === 'ALL' ? '전체' : CATEGORY_LABELS[cat as Category]}</button>
+                <button 
+                  key={cat} 
+                  onClick={() => {
+                    setSelectedCategory(cat as any);
+                    setIsFavoriteMode(false);
+                  }} 
+                  className={`${S.filterBadge} ${!isFavoriteMode && selectedCategory === cat ? S.filterBadgeActive : S.filterBadgeInactive} text-[10px] px-3 py-1.5`}
+                >
+                  {cat === 'ALL' ? '전체' : CATEGORY_LABELS[cat as Category]}
+                </button>
               ))}
             </div>
           )}
@@ -281,9 +322,33 @@ const MapPage = () => {
             </form>
 
             <div ref={scrollRef} onWheel={handleWheel} onMouseDown={onDragStart} onMouseMove={onDragMove} onMouseUp={onDragEnd} onMouseLeave={onDragEnd} className="flex space-x-2 overflow-x-auto no-scrollbar pb-1 cursor-grab active:cursor-grabbing select-none">
-              <button onClick={() => setSelectedCategory('ALL')} className={`${S.filterBadge} ${selectedCategory === 'ALL' ? S.filterBadgeActive : S.filterBadgeInactive}`}>전체</button>
+              <button 
+                onClick={() => setIsFavoriteMode(!isFavoriteMode)} 
+                className={`${S.filterBadge} ${isFavoriteMode ? S.filterBadgeActive : S.filterBadgeInactive} flex items-center space-x-1`}
+              >
+                <Heart size={14} fill={isFavoriteMode ? "white" : "transparent"} />
+                <span>즐겨찾기</span>
+              </button>
+              <button 
+                onClick={() => {
+                  setSelectedCategory('ALL');
+                  setIsFavoriteMode(false);
+                }} 
+                className={`${S.filterBadge} ${!isFavoriteMode && selectedCategory === 'ALL' ? S.filterBadgeActive : S.filterBadgeInactive}`}
+              >
+                전체
+              </button>
               {(Object.keys(CATEGORY_LABELS) as Category[]).map((cat) => (
-                <button key={cat} onClick={() => setSelectedCategory(cat)} className={`${S.filterBadge} ${selectedCategory === cat ? S.filterBadgeActive : S.filterBadgeInactive}`}>{CATEGORY_LABELS[cat]}</button>
+                <button 
+                  key={cat} 
+                  onClick={() => {
+                    setSelectedCategory(cat);
+                    setIsFavoriteMode(false);
+                  }} 
+                  className={`${S.filterBadge} ${!isFavoriteMode && selectedCategory === cat ? S.filterBadgeActive : S.filterBadgeInactive}`}
+                >
+                  {CATEGORY_LABELS[cat]}
+                </button>
               ))}
             </div>
           </div>
@@ -294,7 +359,7 @@ const MapPage = () => {
             <div className="animate-in slide-in-from-bottom lg:slide-in-from-left duration-300 min-h-full pt-4 lg:pt-0 pb-20">
               <div className="flex justify-between items-center mb-4">
                 <button onClick={() => setSelectedPlace(null)} className={S.backButton}>
-                  <ArrowLeft size={16} className="mr-1" /> TOP 20
+                  <ArrowLeft size={16} className="mr-1" /> {selectedCategory === 'FAVORITE' ? '즐겨찾기' : '목록으로'} 
                 </button>
                 <div className="flex items-center space-x-2">
                   {user?.role === 'ADMIN' && (
@@ -317,6 +382,7 @@ const MapPage = () => {
               <PlaceDetailCard 
                 place={selectedPlace}
                 isLoggedIn={isLoggedIn}
+                isFavorite={favorites.some(f => f.id === selectedPlace.id)}
                 onLoginRequired={() => setIsLoginModalOpen(true)}
                 onToggleLike={async (id) => {
                   try {
@@ -325,14 +391,23 @@ const MapPage = () => {
                     alert('좋아요 처리에 실패했습니다.')
                   }
                 }}
+                onToggleFavorite={(id) => toggleFavorite(id)}
               />
             </div>
           ) : (
             <div className="pb-10">
               <div className={S.sectionTitleRow}>
                 <div className="flex flex-col">
-                  <h2 className={S.sectionTitle}><Star size={18} className="text-[#FFB800] fill-[#FFB800] mr-2" />인기 산책 장소 Top 20</h2>
-                  <span className="text-[10px] text-gray-400 ml-7 mt-0.5">(현재 지도 중심 기준입니다.)</span>
+                  <h2 className={S.sectionTitle}>
+                    {isFavoriteMode ? (
+                      <><Heart size={18} className="text-red-400 fill-red-400 mr-2" />나의 즐겨찾기</>
+                    ) : (
+                      <><Star size={18} className="text-[#FFB800] fill-[#FFB800] mr-2" />인기 산책 장소 Top 20</>
+                    )}
+                  </h2>
+                  <span className="text-[10px] text-gray-400 ml-7 mt-0.5">
+                    {isFavoriteMode ? '저장한 장소 목록입니다.' : '(현재 지도 중심 기준입니다.)'}
+                  </span>
                 </div>
                 {isLoading && <div className={S.loadingSpinner} />}
               </div>

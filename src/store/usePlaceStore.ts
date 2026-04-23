@@ -5,11 +5,14 @@ import { placeApi } from '../services/endpoints/PlaceApi'
 interface PlaceState {
   places: Place[]
   topPlaces: Place[]
+  favorites: Place[]
   selectedPlace: Place | null
   isLoading: boolean
-  
+
   fetchPlaces: (keyword?: string, lat?: number, lng?: number, radius?: number, category?: Category | 'ALL') => Promise<void>
   fetchTopPlaces: (lat: number, lng: number, radius?: number, category?: Category | 'ALL') => Promise<void>
+  fetchFavorites: () => Promise<void>
+  toggleFavorite: (placeId: number) => Promise<void>
   deletePlace: (placeId: number) => Promise<void>
   setSelectedPlace: (place: Place | null) => void
   toggleLike: (placeId: number) => Promise<void>
@@ -18,6 +21,7 @@ interface PlaceState {
 export const usePlaceStore = create<PlaceState>((set, get) => ({
   places: [],
   topPlaces: [],
+  favorites: [],
   selectedPlace: null,
   isLoading: false,
 
@@ -49,13 +53,49 @@ export const usePlaceStore = create<PlaceState>((set, get) => ({
     }
   },
 
+  fetchFavorites: async () => {
+    try {
+      const response = await placeApi.getFavorites()
+      set({ favorites: response.data.map(f => f.place) })
+    } catch (error) {
+      console.error('Fetch favorites failed:', error)
+      set({ favorites: [] })
+    }
+  },
+
+  toggleFavorite: async (placeId) => {
+    const { favorites } = get()
+    const isFav = favorites.some(p => p.id === placeId)
+
+    try {
+      if (isFav) {
+        await placeApi.removeFavorite(placeId)
+        set({ favorites: favorites.filter(p => p.id !== placeId) })
+      } else {
+        await placeApi.addFavorite(placeId)
+        // 새로 추가된 경우 상세 정보를 가져와서 favorites에 넣어주거나, 
+        // 기존 리스트(places/topPlaces)에서 찾아 넣기
+        const { places, topPlaces, selectedPlace } = get()
+        const placeToAdd = [...places, ...topPlaces, selectedPlace].find(p => p?.id === placeId)
+        if (placeToAdd) set({ favorites: [...favorites, placeToAdd as Place] })
+        else {
+          const res = await placeApi.getPlaceDetail(placeId)
+          set({ favorites: [...favorites, res.data] })
+        }
+      }
+    } catch (error) {
+      console.error('Toggle favorite failed:', error)
+    }
+  },
+
   deletePlace: async (placeId) => {
     try {
       await placeApi.deletePlace(placeId)
-      const { places, topPlaces, selectedPlace } = get()
+      const { places, topPlaces, favorites, selectedPlace } = get()
       set({
         places: places.filter(p => p.id !== placeId),
         topPlaces: topPlaces.filter(p => p.id !== placeId),
+        favorites: favorites.filter(p => p.id !== placeId),
         selectedPlace: selectedPlace?.id === placeId ? null : selectedPlace
       })
     } catch (error) {
@@ -63,7 +103,6 @@ export const usePlaceStore = create<PlaceState>((set, get) => ({
       throw error
     }
   },
-
   setSelectedPlace: (place) => set({ selectedPlace: place }),
 
   toggleLike: async (placeId) => {

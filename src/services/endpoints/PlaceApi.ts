@@ -41,4 +41,16 @@ export const placeApi = {
   // 좋아요 취소
   unlikePlace: (placeId: number) =>
     apiService.delete<void>(`/api/v1/places/${placeId}/likes`),
+
+  // 즐겨찾기 목록 조회
+  getFavorites: () =>
+    apiService.get<{ favoriteId: number; place: Place }[]>('/api/v1/users/me/favorites'),
+
+  // 즐겨찾기 추가
+  addFavorite: (placeId: number) =>
+    apiService.post<void>(`/api/v1/places/${placeId}/favorites`),
+
+  // 즐겨찾기 삭제
+  removeFavorite: (placeId: number) =>
+    apiService.delete<void>(`/api/v1/places/${placeId}/favorites`),
 };

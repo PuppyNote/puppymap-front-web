@@ -1,19 +1,23 @@
-import { MapPin, Heart } from 'lucide-react'
+import { MapPin, ThumbsUp, Heart } from 'lucide-react'
 import type { Place } from '../../types'
 import { CATEGORY_LABELS } from '../../types'
 
 interface PlaceDetailCardProps {
   place: Place
   isLoggedIn: boolean
+  isFavorite: boolean
   onLoginRequired: () => void
   onToggleLike: (placeId: number) => void
+  onToggleFavorite: (placeId: number) => void
 }
 
 export const PlaceDetailCard = ({ 
   place, 
   isLoggedIn, 
+  isFavorite,
   onLoginRequired, 
-  onToggleLike 
+  onToggleLike,
+  onToggleFavorite
 }: PlaceDetailCardProps) => {
   return (
     <div className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 mb-20 lg:mb-0">
@@ -44,23 +48,37 @@ export const PlaceDetailCard = ({
         {place.offLeashAvailable && <Tag label="오프리쉬" color="green" />}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <button 
-          onClick={() => !isLoggedIn ? onLoginRequired() : onToggleLike(place.id)} 
-          className="flex-1 py-4 bg-[#FFB800] text-white rounded-2xl font-bold hover:shadow-lg transition-all flex items-center justify-center space-x-2"
-        >
-          <Heart size={20} fill={place.likeCount > 0 ? "white" : "transparent"} />
-          <span>좋아요 {place.likeCount}</span>
-        </button>
+      <div className="flex flex-col space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <button 
+            onClick={() => !isLoggedIn ? onLoginRequired() : onToggleLike(place.id)} 
+            className="py-4 bg-orange-50 text-[#FFB800] border border-orange-100 rounded-2xl font-bold hover:shadow-md transition-all flex items-center justify-center space-x-2"
+          >
+            <ThumbsUp size={20} fill={place.likeCount > 0 ? "currentColor" : "transparent"} />
+            <span>좋아요 {place.likeCount}</span>
+          </button>
+
+          <button 
+            onClick={() => !isLoggedIn ? onLoginRequired() : onToggleFavorite(place.id)} 
+            className={`py-4 rounded-2xl font-bold transition-all flex items-center justify-center space-x-2 border-2 ${
+              isFavorite 
+                ? 'bg-red-50 border-red-100 text-red-500' 
+                : 'bg-gray-50 border-transparent text-gray-500 hover:bg-gray-100'
+            }`}
+          >
+            <Heart size={20} fill={isFavorite ? "currentColor" : "transparent"} />
+            <span>{isFavorite ? '저장됨' : '즐겨찾기'}</span>
+          </button>
+        </div>
 
         <a 
           href={`https://map.kakao.com/link/map/${place.title},${place.latitude},${place.longitude}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex-1 py-4 bg-yellow-50 text-[#3A1D1D] border border-yellow-200 rounded-2xl font-bold hover:shadow-md transition-all flex items-center justify-center space-x-2"
+          className="w-full py-4 bg-[#FEE500] text-[#3A1D1D] rounded-2xl font-bold hover:shadow-md transition-all flex items-center justify-center space-x-2"
         >
           <img src="/loginButton/kakao.png" alt="Kakao" className="h-4 object-contain" />
-          <span className="text-sm">카카오맵</span>
+          <span className="text-sm">카카오맵에서 보기</span>
         </a>
       </div>
     </div>
