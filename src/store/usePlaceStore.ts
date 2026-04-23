@@ -67,23 +67,26 @@ export const usePlaceStore = create<PlaceState>((set, get) => ({
   setSelectedPlace: (place) => set({ selectedPlace: place }),
 
   toggleLike: async (placeId) => {
-    const { places, topPlaces } = get()
-    
     try {
+      // 1. 좋아요 API 호출
       await placeApi.likePlace(placeId)
-      
-      const updateList = (list: Place[]) => 
-        list.map(p => p.id === placeId ? { ...p, likeCount: p.likeCount + 1 } : p)
 
-      const updatedPlaces = updateList(places)
-      const updatedTopPlaces = updateList(topPlaces)
+      // 2. 해당 장소의 최신 정보만 다시 가져오기
+      const res = await placeApi.getPlaceDetail(placeId)
+      const updatedPlace = res.data
 
-      set({ 
-        places: updatedPlaces,
-        topPlaces: updatedTopPlaces
+      // 3. 현재 상태의 모든 리스트에서 해당 장소만 교체 (메모리 상에서 업데이트)
+      const { places, topPlaces, selectedPlace } = get()
+      const syncList = (list: Place[]) => list.map(p => p.id === placeId ? updatedPlace : p)
+
+      set({
+        places: syncList(places),
+        topPlaces: syncList(topPlaces),
+        selectedPlace: selectedPlace?.id === placeId ? updatedPlace : selectedPlace
       })
     } catch (error) {
       console.error('Like toggle failed:', error)
+      throw error
     }
   }
 }))

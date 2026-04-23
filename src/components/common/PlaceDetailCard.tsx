@@ -16,7 +16,7 @@ export const PlaceDetailCard = ({
   onToggleLike 
 }: PlaceDetailCardProps) => {
   return (
-    <div className="bg-white p-0 lg:p-0 mb-6 lg:mb-0">
+    <div className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 mb-20 lg:mb-0">
       <div className="flex items-center space-x-2 mb-4">
         <span className="text-[10px] font-bold px-2 py-1 bg-orange-100 text-[#FFB800] rounded-lg">
           {CATEGORY_LABELS[place.category]}
@@ -44,13 +44,25 @@ export const PlaceDetailCard = ({
         <Tag active={place.offLeashAvailable} label="오프리쉬" color="green" />
       </div>
 
-      <button 
-        onClick={() => !isLoggedIn ? onLoginRequired() : onToggleLike(place.id)} 
-        className="w-full py-4 bg-[#FFB800] text-white rounded-2xl font-bold hover:shadow-lg transition-all flex items-center justify-center space-x-2"
-      >
-        <Heart size={20} fill={place.likeCount > 0 ? "white" : "transparent"} />
-        <span>좋아요 {place.likeCount}</span>
-      </button>
+      <div className="grid grid-cols-2 gap-3">
+        <button 
+          onClick={() => !isLoggedIn ? onLoginRequired() : onToggleLike(place.id)} 
+          className="flex-1 py-4 bg-[#FFB800] text-white rounded-2xl font-bold hover:shadow-lg transition-all flex items-center justify-center space-x-2"
+        >
+          <Heart size={20} fill={place.likeCount > 0 ? "white" : "transparent"} />
+          <span>좋아요 {place.likeCount}</span>
+        </button>
+
+        <a 
+          href={`https://map.kakao.com/link/map/${place.title},${place.latitude},${place.longitude}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-1 py-4 bg-yellow-50 text-[#3A1D1D] border border-yellow-200 rounded-2xl font-bold hover:shadow-md transition-all flex items-center justify-center space-x-2"
+        >
+          <img src="/loginButton/kakao.png" alt="Kakao" className="h-4 object-contain" />
+          <span className="text-sm">카카오맵</span>
+        </a>
+      </div>
     </div>
   )
 }

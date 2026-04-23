@@ -100,8 +100,8 @@ const MapPage = () => {
       }
     }
 
-    fetchPlaces(keyword, lat, lng, radius)
-    fetchTopPlaces(lat, lng, 5.0) // 인기 장소는 사용자 요청대로 5km 반경 고정
+    fetchPlaces(keyword, lat, lng, radius, category)
+    fetchTopPlaces(lat, lng, 5.0, category) // 인기 장소는 사용자 요청대로 5km 반경 고정
     setLastSearchInfo({ lat, lng, keyword, category, level })
   }
 
@@ -306,7 +306,13 @@ const MapPage = () => {
                 place={selectedPlace}
                 isLoggedIn={isLoggedIn}
                 onLoginRequired={() => setIsLoginModalOpen(true)}
-                onToggleLike={toggleLike}
+                onToggleLike={async (id) => {
+                  try {
+                    await toggleLike(id)
+                  } catch (err) {
+                    alert('좋아요 처리에 실패했습니다.')
+                  }
+                }}
               />
             </div>
           ) : (
