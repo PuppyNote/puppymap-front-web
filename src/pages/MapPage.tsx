@@ -19,6 +19,30 @@ const MapPage = () => {
   const [map, setMap] = useState<kakao.maps.Map>()
   const [currentPosition, setCurrentPosition] = useState<{ lat: number; lng: number }>({ lat: 37.5665, lng: 126.978 })
   
+  const updateCurrentLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords
+          const newPos = { lat: latitude, lng: longitude }
+          setCurrentPosition(newPos)
+          if (map) map.setCenter(new kakao.maps.LatLng(latitude, longitude))
+        },
+        (error) => {
+          console.error('Geolocation error:', error)
+          alert('위치 정보를 가져올 수 없습니다. 위치 권한을 확인해주세요.')
+        },
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      )
+    } else {
+      alert('이 브라우저에서는 위치 정보를 지원하지 않습니다.')
+    }
+  }
+
+  useEffect(() => {
+    updateCurrentLocation()
+  }, [map])
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
@@ -153,7 +177,7 @@ const MapPage = () => {
   }
 
   const handleMoveToCurrentLocation = () => {
-    if (map) map.setCenter(new kakao.maps.LatLng(currentPosition.lat, currentPosition.lng))
+    updateCurrentLocation()
   }
 
   const handleAdminButtonClick = () => {
