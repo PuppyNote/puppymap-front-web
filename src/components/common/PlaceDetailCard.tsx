@@ -30,7 +30,7 @@ export const PlaceDetailCard = ({
   }
 
   return (
-    <div className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 mb-20 lg:mb-0">
+    <div className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 lg:mb-0">
       <div className="flex items-center space-x-2 mb-4">
         <span className="text-[10px] font-bold px-2 py-1 bg-orange-100 text-[#FFB800] rounded-lg">
           {CATEGORY_LABELS[place.category]}

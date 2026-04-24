@@ -172,8 +172,14 @@ const MapPage = () => {
     setTimer(newTimer)
   }
 
-  const handleMapClick = () => {
-    if (isSelectingLocation) return
+  const handleMapClick = (_map: kakao.maps.Map, mouseEvent: kakao.maps.event.MouseEvent) => {
+    if (isSelectingLocation) {
+      setTempReportPosition({
+        lat: mouseEvent.latLng.getLat(),
+        lng: mouseEvent.latLng.getLng()
+      })
+      return
+    }
     if (window.innerWidth < 1024) {
       setIsSidebarOpen(false)
       setSelectedPlace(null)
@@ -276,7 +282,7 @@ const MapPage = () => {
         style={window.innerWidth < 1024 && selectedPlace ? { transform: `translateY(${touchOffset}px)`, transition: touchStart === null ? 'transform 0.3s ease-out' : 'none' } : {}}
         className={`
         ${S.sidebar} 
-        ${selectedPlace ? 'h-[50vh] lg:h-full rounded-t-[32px] lg:rounded-none bottom-0 left-0 right-0 top-auto' : 'h-full top-0 left-0 right-0'}
+        ${selectedPlace ? 'h-fit max-h-[90dvh] lg:h-full rounded-t-[32px] lg:rounded-none bottom-0 left-0 right-0 top-auto' : 'h-full top-0 left-0 right-0'}
         ${isSidebarOpen ? 'translate-y-0 lg:translate-x-0' : 'translate-y-full lg:-translate-x-full'}
       `}>
         {selectedPlace && <div className="w-full flex justify-center py-3 lg:hidden shrink-0"><div className="w-12 h-1.5 bg-gray-200 rounded-full" /></div>}
@@ -305,9 +311,9 @@ const MapPage = () => {
           </div>
         )}
 
-        <div className={S.contentArea}>
+        <div className={`${S.contentArea} ${selectedPlace ? 'flex-none' : 'flex-1'}`}>
           {selectedPlace ? (
-            <div className="animate-in slide-in-from-bottom lg:slide-in-from-left duration-300 min-h-full pt-2 lg:pt-0 pb-20">
+            <div className="animate-in slide-in-from-bottom lg:slide-in-from-left duration-300 pt-2 lg:pt-0 lg:pb-20 px-6">
               <div className="flex justify-between items-center mb-4">
                 <button onClick={() => setSelectedPlace(null)} className={`${S.backButton} hidden lg:flex`}><ArrowLeft size={16} className="mr-1" /> {isFavoriteMode ? '즐겨찾기' : '목록으로'}</button>
                 <div className="flex-1 lg:hidden" />
@@ -319,7 +325,7 @@ const MapPage = () => {
               <PlaceDetailCard place={selectedPlace} isLoggedIn={isLoggedIn} isFavorite={favorites.some(f => f.id === selectedPlace.id)} onLoginRequired={() => setIsLoginModalOpen(true)} onToggleLike={async (id) => { try { await toggleLike(id) } catch (err) { alert('좋아요 처리에 실패했습니다.') } }} onToggleFavorite={(id) => toggleFavorite(id)} />
             </div>
           ) : (
-            <div className="pb-10 px-6 lg:px-0">
+            <div className="pb-10 px-6">
               <div className={S.sectionTitleRow}>
                 <div className="flex flex-col">
                   <h2 className={S.sectionTitle}>{isFavoriteMode ? <><Heart size={18} className="text-red-400 fill-red-400 mr-2" />나의 즐겨찾기</> : <><Star size={18} className="text-[#FFB800] fill-[#FFB800] mr-2" />인기 산책 장소 Top 20</>}</h2>
@@ -366,7 +372,18 @@ const MapPage = () => {
       </aside>
 
       <main className={S.mapMain}>
-        <Map center={currentPosition} style={{ width: '100%', height: '100%' }} level={3} onCreate={setMap} onIdle={handleMapIdle} onClick={handleMapClick} onDragStart={() => { if (window.innerWidth < 1024 && selectedPlace) handleCloseDetail() }} onZoomStart={() => { if (window.innerWidth < 1024 && selectedPlace) handleCloseDetail() }}>
+        <Map 
+          center={currentPosition} 
+          style={{ width: '100%', height: '100%' }} 
+          level={3} 
+          onCreate={setMap} 
+          onIdle={handleMapIdle} 
+          onClick={handleMapClick} 
+          draggable={!isSelectingLocation}
+          zoomable={!isSelectingLocation}
+          onDragStart={() => { if (window.innerWidth < 1024 && selectedPlace) handleCloseDetail() }} 
+          onZoomStart={() => { if (window.innerWidth < 1024 && selectedPlace) handleCloseDetail() }}
+        >
           <MapMarker position={currentPosition} image={{ src: "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png", size: { width: 24, height: 35 } }} title="내 위치" />
           {isSelectingLocation && tempReportPosition && <MapMarker position={tempReportPosition} image={{ src: "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/marker_red.png", size: { width: 31, height: 35 } }} />}
           {places.map((place) => (
@@ -376,7 +393,11 @@ const MapPage = () => {
         
         <div className={S.floatingControls}>
           <button onClick={handleMoveToCurrentLocation} className={S.navButton}><Navigation size={24} className="fill-[#FFB800] text-[#FFB800]" /></button>
-          <button onClick={() => !isLoggedIn ? setIsLoginModalOpen(true) : setIsSelectingLocation(true)} className={S.reportButton}>
+          <button onClick={() => {
+            if (!isLoggedIn) return setIsLoginModalOpen(true)
+            setIsSelectingLocation(true)
+            setTempReportPosition(null)
+          }} className={S.reportButton}>
             <Plus size={24} strokeWidth={3} />
             <span className={S.reportBtnText}>장소 제보</span>
           </button>
