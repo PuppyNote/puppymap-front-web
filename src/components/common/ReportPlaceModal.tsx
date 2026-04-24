@@ -74,7 +74,7 @@ export const ReportPlaceModal = ({ isOpen, onClose, position, onSuccess }: Repor
       resetForm()
     } catch (err) {
       console.error(err)
-      alert('제보 처리 중 오류가 발생했습니다.')
+      // alert 제거
     } finally {
       setIsSubmitting(false)
     }
@@ -89,20 +89,20 @@ export const ReportPlaceModal = ({ isOpen, onClose, position, onSuccess }: Repor
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="장소 제보하기">
-      <form onSubmit={handleSubmit} className="space-y-5 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
+      <form onSubmit={handleSubmit} className={S.formContainer}>
         <div className={S.coordInfo}>중심 좌표: {position.lat.toFixed(4)}, {position.lng.toFixed(4)}</div>
         
         {/* Image Upload UI */}
         <div>
           <label className={S.label}>사진 등록</label>
-          <div className="flex flex-wrap gap-2">
+          <div className={S.imageGrid}>
             <button 
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-20 h-20 bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 hover:border-[#FFB800] hover:text-[#FFB800] transition-all"
+              className={S.imageAddButton}
             >
               <Camera size={24} />
-              <span className="text-[10px] mt-1 font-bold">{selectedImages.length}/5</span>
+              <span className={S.imageCountText}>{selectedImages.length}/5</span>
             </button>
             <input 
               type="file" 
@@ -113,12 +113,12 @@ export const ReportPlaceModal = ({ isOpen, onClose, position, onSuccess }: Repor
               className="hidden" 
             />
             {previews.map((src, idx) => (
-              <div key={idx} className="relative w-20 h-20">
-                <img src={src} className="w-full h-full object-cover rounded-2xl" alt="Preview" />
+              <div key={idx} className={S.imagePreviewWrapper}>
+                <img src={src} className={S.imagePreview} alt="Preview" />
                 <button 
                   type="button"
                   onClick={() => removeImage(idx)}
-                  className="absolute -top-1 -right-1 bg-white shadow-md rounded-full p-1 text-gray-400 hover:text-red-500"
+                  className={S.imageRemoveButton}
                 >
                   <X size={12} />
                 </button>
@@ -134,12 +134,14 @@ export const ReportPlaceModal = ({ isOpen, onClose, position, onSuccess }: Repor
 
         <div>
           <label className={S.label}>카테고리</label>
-          <select value={category} onChange={e => setCategory(e.target.value as Category)} className={S.select}>
-            <option value="PARK">공원</option>
-            <option value="TRAIL">산책로</option>
-            <option value="CAFE">카페</option>
-            <option value="ETC">기타</option>
-          </select>
+          <div className="relative">
+            <select value={category} onChange={e => setCategory(e.target.value as Category)} className={S.select}>
+              <option value="PARK">공원</option>
+              <option value="TRAIL">산책로</option>
+              <option value="CAFE">카페</option>
+              <option value="ETC">기타</option>
+            </select>
+          </div>
         </div>
 
         <div>
@@ -147,7 +149,7 @@ export const ReportPlaceModal = ({ isOpen, onClose, position, onSuccess }: Repor
           <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="설명을 입력해주세요" className={S.textarea} required />
         </div>
 
-        <div className="grid grid-cols-3 gap-2">
+        <div className={S.toggleGrid}>
           <OptionToggle active={isLargeDog} label="대형견" onChange={setIsLargeDog} />
           <OptionToggle active={isParking} label="주차가능" onChange={setIsParking} />
           <OptionToggle active={isOffLeash} label="오프리쉬" onChange={setIsOffLeash} />
@@ -163,19 +165,29 @@ export const ReportPlaceModal = ({ isOpen, onClose, position, onSuccess }: Repor
 }
 
 const OptionToggle = ({ active, label, onChange }: { active: boolean, label: string, onChange: (v: boolean) => void }) => (
-  <label className={`${S.toggleBase} ${active ? 'border-[#FFB800] bg-orange-50' : 'border-gray-50 bg-gray-50'}`}>
+  <label className={`${S.toggleBase} ${active ? S.toggleActive : S.toggleInactive}`}>
     <input type="checkbox" checked={active} onChange={e => onChange(e.target.checked)} className="hidden" />
     <span className={`${S.toggleText} ${active ? 'text-[#FFB800]' : 'text-gray-400'}`}>{label}</span>
   </label>
 )
 
 const S = {
+  formContainer: "space-y-5 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar",
   coordInfo: "text-[10px] text-gray-400 bg-gray-50 p-3 rounded-xl font-mono mb-4",
   label: "block text-sm font-bold text-gray-700 mb-2 ml-1",
+  imageGrid: "flex flex-wrap gap-2",
+  imageAddButton: "w-20 h-20 bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 hover:border-[#FFB800] hover:text-[#FFB800] transition-all",
+  imageCountText: "text-[10px] mt-1 font-bold",
+  imagePreviewWrapper: "relative w-20 h-20",
+  imagePreview: "w-full h-full object-cover rounded-2xl",
+  imageRemoveButton: "absolute -top-1 -right-1 bg-white shadow-md rounded-full p-1 text-gray-400 hover:text-red-500",
   input: "w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-[#FFB800] outline-none transition-all",
-  select: "w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-[#FFB800] outline-none appearance-none",
+  select: "w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-[#FFB800] outline-none appearance-none cursor-pointer",
   textarea: "w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-[#FFB800] outline-none h-32 resize-none transition-all",
-  submitButton: "w-full py-4 bg-[#FFB800] text-white rounded-2xl font-bold hover:shadow-lg transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed",
+  toggleGrid: "grid grid-cols-3 gap-2",
   toggleBase: "flex flex-col items-center p-3 rounded-2xl border-2 transition-all cursor-pointer",
-  toggleText: "text-[10px] font-bold"
+  toggleActive: "border-[#FFB800] bg-orange-50",
+  toggleInactive: "border-gray-50 bg-gray-50",
+  toggleText: "text-[10px] font-bold",
+  submitButton: "w-full py-4 bg-[#FFB800] text-white rounded-2xl font-bold hover:shadow-lg transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed",
 }

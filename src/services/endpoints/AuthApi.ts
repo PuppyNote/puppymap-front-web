@@ -37,11 +37,11 @@ export const authApi = {
 
   // 이메일 인증번호 전송
   sendEmailVerification: (email: string) =>
-    apiService.post<string>('/api/v1/user/email/send', { email }),
+    apiService.post<number>('/api/v1/user/email/send', { email }),
 
   // 이메일 인증번호 확인
-  verifyEmailCode: (email: string, code: string) =>
-    apiService.post<boolean>('/api/v1/user/email/verify', { email, code }),
+  verifyEmailCode: (verificationId: number, code: string) =>
+    apiService.post<boolean>('/api/v1/user/email/verify', { verificationId, code }),
 
   // 비밀번호 재설정 이메일 전송
   sendPasswordResetEmail: (email: string) =>

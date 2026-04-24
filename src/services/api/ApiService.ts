@@ -37,11 +37,33 @@ class ApiService {
     // Response Interceptor
     this.instance.interceptors.response.use(
       (response: AxiosResponse) => {
+        // 서버에서 정의한 statusCode가 400인 경우 (200 OK 응답 내의 비즈니스 에러)
+        if (response.data && response.data.statusCode === 400) {
+          const errorMessage = response.data.message || '잘못된 요청입니다.';
+          alert(errorMessage);
+          return Promise.reject({
+            message: errorMessage,
+            statusCode: 400,
+            ...response.data
+          });
+        }
         return response.data;
       },
       async (error: AxiosError) => {
         const { config, response } = error;
         const originalRequest = config as AxiosRequestConfig & { _retry?: boolean };
+
+        // 실제 HTTP 상태 코드가 400인 경우
+        if (response?.status === 400) {
+          const errorData = response.data as any;
+          const errorMessage = errorData?.message || '잘못된 요청입니다.';
+          alert(errorMessage);
+          return Promise.reject({
+            message: errorMessage,
+            statusCode: 400,
+            ...errorData
+          });
+        }
 
         if (response?.status === 401 && !originalRequest._retry) {
           if (this.isRefreshing) {
@@ -86,7 +108,7 @@ class ApiService {
             this.isRefreshing = false;
             this.refreshSubscribers = [];
             storageService.clearTokens();
-            window.location.href = '/login';
+            // 강제 리다이렉트 제거 (404 방지)
             return Promise.reject(refreshError);
           }
         }

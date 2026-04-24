@@ -14,6 +14,7 @@ export const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
   const [password, setPassword] = useState('')
   const [nickName, setNickName] = useState('')
   const [verificationCode, setVerificationCode] = useState('')
+  const [verificationId, setVerificationId] = useState<number | null>(null)
   
   const [isEmailChecked, setIsEmailChecked] = useState(false)
   const [isEmailVerified, setIsEmailVerified] = useState(false)
@@ -33,7 +34,7 @@ export const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
         onClose()
       }
     } catch (err) {
-      alert('로그인에 실패했습니다.')
+      // alert 제거 (ApiService에서 처리)
     } finally {
       setIsLoading(false)
     }
@@ -43,20 +44,16 @@ export const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
     if (!email) return alert('이메일을 입력해주세요.')
     setIsLoading(true)
     try {
-      // 1. 중복 체크 (백엔드 사양에 따라 예외 처리 가능)
-      const checkRes = await authApi.checkEmailDuplicate(email)
-      if (checkRes.data === true) {
-        alert('이미 사용 중인 이메일입니다.')
-        return
+      // 인증번호 전송 (제공해주신 명세에 따라 즉시 호출)
+      const res = await authApi.sendEmailVerification(email)
+      if (res.data) {
+        setVerificationId(res.data)
+        setIsCodeSent(true)
+        setIsEmailChecked(true)
+        alert('인증번호가 전송되었습니다. 이메일을 확인해주세요.')
       }
-      
-      // 2. 인증번호 전송
-      await authApi.sendEmailVerification(email)
-      setIsCodeSent(true)
-      setIsEmailChecked(true)
-      alert('인증번호가 전송되었습니다. 이메일을 확인해주세요.')
     } catch (err: any) {
-      alert(err.response?.data?.message || '이메일 확인에 실패했습니다.')
+      // alert 제거
     } finally {
       setIsLoading(false)
     }
@@ -64,9 +61,11 @@ export const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
 
   const verifyCode = async () => {
     if (!verificationCode) return alert('인증번호를 입력해주세요.')
+    if (verificationId === null) return alert('인증 요청 정보가 없습니다. 다시 인증받기를 눌러주세요.')
+    
     setIsLoading(true)
     try {
-      const res = await authApi.verifyEmailCode(email, verificationCode)
+      const res = await authApi.verifyEmailCode(verificationId, verificationCode)
       if (res.data === true) {
         setIsEmailVerified(true)
         alert('이메일 인증이 완료되었습니다.')
@@ -74,7 +73,7 @@ export const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
         alert('인증번호가 일치하지 않습니다.')
       }
     } catch (err: any) {
-      alert('인증번호 확인 중 오류가 발생했습니다.')
+      // alert 제거
     } finally {
       setIsLoading(false)
     }
@@ -88,12 +87,12 @@ export const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
     setIsLoading(true)
     try {
       const res = await authApi.signup({ email, password, nickName })
-      if (res.statusCode === 201) {
+      if (res.statusCode === 201 || res.statusCode === 200) {
         alert('회원가입이 완료되었습니다! 이제 로그인할 수 있습니다.')
         setMode('LOGIN')
       }
     } catch (err: any) {
-      alert(err.response?.data?.message || '회원가입에 실패했습니다.')
+      // alert 제거
     } finally {
       setIsLoading(false)
     }
@@ -112,6 +111,7 @@ export const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
 
   const resetForm = () => {
     setEmail(''); setPassword(''); setNickName(''); setVerificationCode('')
+    setVerificationId(null)
     setIsEmailChecked(false); setIsEmailVerified(false); setIsCodeSent(false)
   }
 
@@ -156,7 +156,11 @@ export const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
             />
             <button 
               type="button" 
-              onClick={verifyCode} 
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                verifyCode();
+              }} 
               disabled={isLoading}
               className="px-4 bg-[#FFB800] text-white rounded-2xl text-xs font-bold whitespace-nowrap"
             >
@@ -214,11 +218,45 @@ export const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
 }
 
 const S = {
-  input: "w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-[#FFB800] outline-none transition-all disabled:opacity-60",
-  loginButton: "w-full py-4 bg-[#FFB800] text-white rounded-2xl font-bold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed",
-  dividerWrapper: "relative py-2",
-  dividerLine: "absolute inset-0 flex items-center border-t border-gray-100",
-  dividerTextWrapper: "relative flex justify-center text-xs uppercase",
-  dividerText: "bg-white px-2 text-gray-400",
-  kakaoButton: "w-full flex items-center justify-center space-x-2 py-3.5 bg-[#FEE500] text-[#191919] rounded-2xl font-bold hover:shadow-md transition-all",
+  input: `
+    w-full px-5 py-4 
+    bg-gray-50 border-none rounded-2xl 
+    focus:ring-2 focus:ring-[#FFB800] 
+    outline-none transition-all 
+    disabled:opacity-60
+  `,
+
+  loginButton: `
+    w-full py-4 
+    bg-[#FFB800] text-white 
+    rounded-2xl font-bold 
+    hover:shadow-lg transition-all 
+    disabled:opacity-50 disabled:cursor-not-allowed
+  `,
+
+  dividerWrapper: `
+    relative py-2
+  `,
+
+  dividerLine: `
+    absolute inset-0 flex items-center 
+    border-t border-gray-100
+  `,
+
+  dividerTextWrapper: `
+    relative flex justify-center 
+    text-xs uppercase
+  `,
+
+  dividerText: `
+    bg-white px-2 
+    text-gray-400
+  `,
+
+  kakaoButton: `
+    w-full flex items-center justify-center space-x-2 
+    py-3.5 bg-[#FEE500] text-[#191919] 
+    rounded-2xl font-bold 
+    hover:shadow-md transition-all
+  `,
 }

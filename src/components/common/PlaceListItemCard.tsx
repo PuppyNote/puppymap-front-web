@@ -22,46 +22,46 @@ export const PlaceListItemCard = ({ place, index, onClick }: PlaceListItemCardPr
     <>
       <div 
         onClick={() => onClick(place)} 
-        className="p-5 bg-white border border-gray-100 rounded-2xl hover:border-[#FFB800] cursor-pointer transition-all shadow-sm hover:shadow-md group"
+        className={S.container}
       >
-        <div className="flex justify-between items-start">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center space-x-2 mb-1.5">
+        <div className={S.contentWrapper}>
+          <div className={S.infoSection}>
+            <div className={S.headerRow}>
               {index !== undefined && (
-                <span className="text-[10px] font-black px-2 py-0.5 bg-gray-100 text-gray-500 rounded-md whitespace-nowrap">
+                <span className={S.rankBadge}>
                   NO.{index + 1}
                 </span>
               )}
-              <span className="text-xs font-bold text-[#FFB800] uppercase tracking-wider">
+              <span className={S.categoryBadge}>
                 {CATEGORY_LABELS[place.category]}
               </span>
             </div>
-            <h3 className="font-bold text-gray-900 group-hover:text-[#FFB800] transition-colors truncate">
+            <h3 className={S.title}>
               {place.title}
             </h3>
-            <p className="text-xs text-gray-400 mt-2 line-clamp-1">
+            <p className={S.description}>
               {place.content}
             </p>
           </div>
 
-          <div className="flex items-center ml-4 space-x-3">
+          <div className={S.mediaSection}>
             {place.imageUrls && place.imageUrls.length > 0 && (
-              <div className="relative w-16 h-16 shrink-0" onClick={handleImageClick}>
+              <div className={S.imageWrapper} onClick={handleImageClick}>
                 <img 
                   src={place.imageUrls[0]} 
-                  className="w-full h-full object-cover rounded-xl shadow-inner hover:opacity-90 transition-opacity" 
+                  className={S.thumbnail} 
                   alt="Thumbnail" 
                 />
                 {place.imageUrls.length > 1 && (
-                  <div className="absolute -top-1 -right-1 bg-black/70 text-white text-[8px] px-1.5 py-0.5 rounded-full font-bold">
+                  <div className={S.imageCountBadge}>
                     {place.imageUrls.length}
                   </div>
                 )}
               </div>
             )}
-            <div className="flex flex-col items-center space-y-1">
-              <Heart size={18} className="text-red-400 group-hover:fill-red-400 transition-all" />
-              <span className="text-[10px] font-bold text-gray-400">{place.likeCount}</span>
+            <div className={S.likeWrapper}>
+              <Heart size={18} className={S.likeIcon} />
+              <span className={S.likeCount}>{place.likeCount}</span>
             </div>
           </div>
         </div>
@@ -75,4 +75,22 @@ export const PlaceListItemCard = ({ place, index, onClick }: PlaceListItemCardPr
       />
     </>
   )
+}
+
+const S = {
+  container: "p-5 bg-white border border-gray-100 rounded-2xl hover:border-[#FFB800] cursor-pointer transition-all shadow-sm hover:shadow-md group",
+  contentWrapper: "flex justify-between items-start",
+  infoSection: "flex-1 min-w-0",
+  headerRow: "flex items-center space-x-2 mb-1.5",
+  rankBadge: "text-[10px] font-black px-2 py-0.5 bg-gray-100 text-gray-500 rounded-md whitespace-nowrap",
+  categoryBadge: "text-xs font-bold text-[#FFB800] uppercase tracking-wider",
+  title: "font-bold text-gray-900 group-hover:text-[#FFB800] transition-colors truncate",
+  description: "text-xs text-gray-400 mt-2 line-clamp-1",
+  mediaSection: "flex items-center ml-4 space-x-3",
+  imageWrapper: "relative w-16 h-16 shrink-0",
+  thumbnail: "w-full h-full object-cover rounded-xl shadow-inner hover:opacity-90 transition-opacity",
+  imageCountBadge: "absolute -top-1 -right-1 bg-black/70 text-white text-[8px] px-1.5 py-0.5 rounded-full font-bold",
+  likeWrapper: "flex flex-col items-center space-y-1",
+  likeIcon: "text-red-400 group-hover:fill-red-400 transition-all",
+  likeCount: "text-[10px] font-bold text-gray-400"
 }
