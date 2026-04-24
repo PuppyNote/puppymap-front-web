@@ -19,7 +19,7 @@ const MapPage = () => {
   const [map, setMap] = useState<kakao.maps.Map>()
   const [currentPosition, setCurrentPosition] = useState<{ lat: number; lng: number }>({ lat: 37.5665, lng: 126.978 })
   
-  const updateCurrentLocation = () => {
+  const updateCurrentLocation = (isAuto = false) => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -30,17 +30,19 @@ const MapPage = () => {
         },
         (error) => {
           console.error('Geolocation error:', error)
-          alert('위치 정보를 가져올 수 없습니다. 위치 권한을 확인해주세요.')
+          if (!isAuto) {
+            alert('위치 정보를 가져올 수 없습니다. 위치 권한을 확인해주세요.')
+          }
         },
         { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
       )
-    } else {
+    } else if (!isAuto) {
       alert('이 브라우저에서는 위치 정보를 지원하지 않습니다.')
     }
   }
 
   useEffect(() => {
-    updateCurrentLocation()
+    updateCurrentLocation(true)
   }, [map])
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
