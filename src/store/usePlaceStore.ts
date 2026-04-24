@@ -1,6 +1,12 @@
 import { create } from 'zustand'
-import type { Place } from '../types'
+import type { Place, Category } from '../types'
 import { placeApi } from '../services/endpoints/PlaceApi'
+
+interface PageInfo {
+  currentPage: number
+  totalPage: number
+  totalElement: number
+}
 
 interface PlaceState {
   places: Place[]
@@ -8,9 +14,16 @@ interface PlaceState {
   favorites: Place[]
   selectedPlace: Place | null
   isLoading: boolean
+  
+  placesPage: PageInfo
+  topPlacesPage: PageInfo
 
-  fetchPlaces: (keyword?: string, lat?: number, lng?: number, radius?: number, category?: Category | 'ALL') => Promise<void>
-  fetchTopPlaces: (lat: number, lng: number, radius?: number, category?: Category | 'ALL') => Promise<void>
+  fetchPlaces: (keyword?: string, lat?: number, lng?: number, radius?: number, category?: Category | 'ALL', page?: number) => Promise<void>
+  fetchMorePlaces: (keyword?: string, lat?: number, lng?: number, radius?: number, category?: Category | 'ALL') => Promise<void>
+  
+  fetchTopPlaces: (lat: number, lng: number, radius?: number, category?: Category | 'ALL', page?: number) => Promise<void>
+  fetchMoreTopPlaces: (lat: number, lng: number, radius?: number, category?: Category | 'ALL') => Promise<void>
+  
   fetchFavorites: () => Promise<void>
   toggleFavorite: (placeId: number) => Promise<void>
   deletePlace: (placeId: number) => Promise<void>
@@ -18,39 +31,68 @@ interface PlaceState {
   toggleLike: (placeId: number) => Promise<void>
 }
 
+const initialPageInfo = { currentPage: 0, totalPage: 0, totalElement: 0 }
+
 export const usePlaceStore = create<PlaceState>((set, get) => ({
   places: [],
   topPlaces: [],
   favorites: [],
   selectedPlace: null,
   isLoading: false,
+  placesPage: initialPageInfo,
+  topPlacesPage: initialPageInfo,
 
-  fetchPlaces: async (keyword, lat, lng, radius, category) => {
+  fetchPlaces: async (keyword, lat, lng, radius, category, page = 1) => {
     set({ isLoading: true })
     try {
       let response;
-      if (lat && lng) {
-        const catParam = category === 'ALL' ? undefined : category
-        response = await placeApi.searchPlaces(keyword || '', lat, lng, radius, catParam)
+      const catParam = category === 'ALL' ? undefined : category
+      
+      if (keyword) {
+        // 키워드 + 카테고리 리스트 검색 API 사용
+        response = await placeApi.listPlaces(keyword, catParam, page, 10)
+      } else if (lat && lng) {
+        // 위치 정보가 있고 키워드가 없으면 주변 검색 API 사용
+        response = await placeApi.searchPlaces('', lat, lng, radius, catParam, page, 10)
       } else {
-        response = await placeApi.getPlaces()
+        // 둘 다 없으면 전체 목록 조회 (카테고리 포함)
+        response = await placeApi.listPlaces('', catParam, page, 10)
       }
-      set({ places: response.data, isLoading: false })
+
+      set({ 
+        places: page === 1 ? response.data.content : [...get().places, ...response.data.content],
+        placesPage: response.data.pageInfo,
+        isLoading: false 
+      })
     } catch (error) {
       console.error('Fetch places failed:', error)
-      set({ isLoading: false, places: [] })
+      set({ isLoading: false })
     }
   },
 
-  fetchTopPlaces: async (lat, lng, radius, category) => {
+  fetchMorePlaces: async (keyword, lat, lng, radius, category) => {
+    const { placesPage, isLoading } = get()
+    if (isLoading || placesPage.currentPage >= placesPage.totalPage) return
+    await get().fetchPlaces(keyword, lat, lng, radius, category, placesPage.currentPage + 1)
+  },
+
+  fetchTopPlaces: async (lat, lng, radius, category, page = 1) => {
     try {
       const catParam = category === 'ALL' ? undefined : category
-      const response = await placeApi.getNearbyTopPlaces(lat, lng, radius, catParam)
-      set({ topPlaces: response.data })
+      const response = await placeApi.getNearbyTopPlaces(lat, lng, radius, catParam, page, 10)
+      set({ 
+        topPlaces: page === 1 ? response.data.content : [...get().topPlaces, ...response.data.content],
+        topPlacesPage: response.data.pageInfo
+      })
     } catch (error) {
       console.error('Fetch top places failed:', error)
-      set({ topPlaces: [] })
     }
+  },
+
+  fetchMoreTopPlaces: async (lat, lng, radius, category) => {
+    const { topPlacesPage, isLoading } = get()
+    if (isLoading || topPlacesPage.currentPage >= topPlacesPage.totalPage) return
+    await get().fetchTopPlaces(lat, lng, radius, category, topPlacesPage.currentPage + 1)
   },
 
   fetchFavorites: async () => {
@@ -73,8 +115,6 @@ export const usePlaceStore = create<PlaceState>((set, get) => ({
         set({ favorites: favorites.filter(p => p.id !== placeId) })
       } else {
         await placeApi.addFavorite(placeId)
-        // 새로 추가된 경우 상세 정보를 가져와서 favorites에 넣어주거나, 
-        // 기존 리스트(places/topPlaces)에서 찾아 넣기
         const { places, topPlaces, selectedPlace } = get()
         const placeToAdd = [...places, ...topPlaces, selectedPlace].find(p => p?.id === placeId)
         if (placeToAdd) set({ favorites: [...favorites, placeToAdd as Place] })
@@ -107,14 +147,9 @@ export const usePlaceStore = create<PlaceState>((set, get) => ({
 
   toggleLike: async (placeId) => {
     try {
-      // 1. 좋아요 API 호출
       await placeApi.likePlace(placeId)
-
-      // 2. 해당 장소의 최신 정보만 다시 가져오기
       const res = await placeApi.getPlaceDetail(placeId)
       const updatedPlace = res.data
-
-      // 3. 현재 상태의 모든 리스트에서 해당 장소만 교체 (메모리 상에서 업데이트)
       const { places, topPlaces, selectedPlace } = get()
       const syncList = (list: Place[]) => list.map(p => p.id === placeId ? updatedPlace : p)
 

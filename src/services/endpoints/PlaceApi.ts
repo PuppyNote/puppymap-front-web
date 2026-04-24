@@ -1,25 +1,27 @@
 import { apiService } from '../api/ApiService';
-import type { Place, Review, Category } from '../../types';
+import type { Place, Review, Category, PaginatedResponse } from '../../types';
 
 export const placeApi = {
-  // 장소 목록 조회 (필터 포함)
-  getPlaces: (params?: { category?: Category; largeDog?: boolean; parking?: boolean; offLeash?: boolean }) =>
-    apiService.get<Place[]>('/api/v1/places', { params }),
+  // 장소 목록 조회 (키워드 + 카테고리 페이징)
+  listPlaces: (keyword: string = '', category?: Category, page: number = 1, size: number = 10) =>
+    apiService.get<PaginatedResponse<Place>>('/api/v1/places/list', { 
+      params: { keyword, category, page, size } 
+    }),
 
   // 장소 상세 조회
   getPlaceDetail: (placeId: number) =>
     apiService.get<Place>(`/api/v1/places/${placeId}`),
 
-  // 장소 검색
-  searchPlaces: (keyword: string, lat: number, lng: number, radius: number = 5.0, category?: Category) =>
-    apiService.get<Place[]>('/api/v1/places/search', {
-      params: { keyword, lat, lng, radius, category },
+  // 장소 검색 (페이징 추가)
+  searchPlaces: (keyword: string, lat: number, lng: number, radius: number = 5.0, category?: Category, page: number = 1, size: number = 10) =>
+    apiService.get<PaginatedResponse<Place>>('/api/v1/places/search', {
+      params: { keyword, lat, lng, radius, category, page, size },
     }),
 
-  // 근처 인기 장소 Top20 조회
-  getNearbyTopPlaces: (lat: number, lng: number, radiusKm: number = 5.0, category?: Category) =>
-    apiService.get<Place[]>('/api/v1/places/nearby/top', {
-      params: { lat, lng, radiusKm, category },
+  // 근처 인기 장소 Top20 조회 (페이징 추가)
+  getNearbyTopPlaces: (lat: number, lng: number, radiusKm: number = 5.0, category?: Category, page: number = 1, size: number = 10) =>
+    apiService.get<PaginatedResponse<Place>>('/api/v1/places/nearby/top', {
+      params: { lat, lng, radiusKm, category, page, size },
     }),
 
   // 장소 제보

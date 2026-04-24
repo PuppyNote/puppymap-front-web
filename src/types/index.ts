@@ -45,3 +45,12 @@ export interface UserInfo {
   profileUrl?: string;
   role: UserRole;
 }
+
+export interface PaginatedResponse<T> {
+  content: T[];
+  pageInfo: {
+    currentPage: number;
+    totalPage: number;
+    totalElement: number;
+  };
+}

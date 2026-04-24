@@ -17,7 +17,7 @@ const MapPage = () => {
   const [selectedCategory, setSelectedCategory] = useState<Category | 'ALL'>('ALL')
   const [isFavoriteMode, setIsFavoriteMode] = useState(false)
   const [map, setMap] = useState<kakao.maps.Map>()
-  // 로컬 스토리지에서 마지막 위치 불러오기 (없으면 서울시청)
+  
   const [currentPosition, setCurrentPosition] = useState<{ lat: number; lng: number }>(() => {
     const saved = localStorage.getItem('last-position')
     if (saved) {
@@ -46,16 +46,14 @@ const MapPage = () => {
 
     const handleError = (error: GeolocationPositionError) => {
       console.error('Geolocation error:', error)
-      
       if (error.code === error.PERMISSION_DENIED) {
         if (!isAuto) {
           alert('위치 권한이 거부되었습니다. 설정 > 개인정보 보호 > 위치 서비스에서 브라우저(Safari/Chrome)의 위치 권한을 "사용하는 동안"으로 허용해주세요.')
         }
       } else if (error.code === error.TIMEOUT || error.code === error.POSITION_UNAVAILABLE) {
-        // 신호가 약할 경우 일반 정확도로 재시도
         navigator.geolocation.getCurrentPosition(
           handleSuccess,
-          (err) => {
+          () => {
             if (!isAuto) alert('위치 정보를 가져올 수 없습니다. GPS 신호가 약하거나 위치 서비스가 꺼져있을 수 있습니다.')
           },
           { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
@@ -105,7 +103,39 @@ const MapPage = () => {
   const startX = useRef(0)
   const scrollLeft = useRef(0)
 
-  const { topPlaces, places, favorites, selectedPlace, isLoading, fetchPlaces, fetchTopPlaces, fetchFavorites, setSelectedPlace, toggleLike, toggleFavorite, deletePlace } = usePlaceStore()
+  const { 
+    topPlaces, places, favorites, selectedPlace, isLoading, 
+    placesPage, topPlacesPage,
+    fetchPlaces, fetchMorePlaces, fetchTopPlaces, fetchMoreTopPlaces, 
+    fetchFavorites, setSelectedPlace, toggleLike, toggleFavorite, deletePlace 
+  } = usePlaceStore()
+
+  const observerTarget = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!observerTarget.current || selectedPlace) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isLoading) {
+          if (isFavoriteMode) return
+          if (searchKeyword || map) {
+            const center = map?.getCenter()
+            fetchMorePlaces(searchKeyword, center?.getLat(), center?.getLng(), getDynamicRadius(map?.getLevel() || 3), selectedCategory)
+          }
+          if (map && !searchKeyword) {
+            const center = map.getCenter()
+            fetchMoreTopPlaces(center.getLat(), center.getLng(), 5.0, selectedCategory)
+          }
+        }
+      },
+      { threshold: 1.0 }
+    )
+
+    observer.observe(observerTarget.current)
+    return () => observer.disconnect()
+  }, [isLoading, isFavoriteMode, searchKeyword, selectedCategory, map, selectedPlace])
+
   const { isLoggedIn, logout, user } = useAuthStore()
   const [timer, setTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
 
@@ -116,9 +146,7 @@ const MapPage = () => {
       alert('장소가 삭제되었습니다.')
       if (window.innerWidth < 1024) handleCloseDetail()
       else setSelectedPlace(null)
-    } catch (err) {
-      // alert 제거
-    }
+    } catch (err) {}
   }
 
   const panToPlace = (lat: number, lng: number) => {
@@ -154,12 +182,16 @@ const MapPage = () => {
     const lng = center.getLng()
     const level = mapObj.getLevel()
     const radius = getDynamicRadius(level)
+    
     if (!force && lastSearchInfo) {
       const distance = getDistance(lat, lng, lastSearchInfo.lat, lastSearchInfo.lng)
       if (distance < 0.2 && keyword === lastSearchInfo.keyword && category === lastSearchInfo.category && level === lastSearchInfo.level) return
     }
+
     fetchPlaces(keyword, lat, lng, radius, category)
-    fetchTopPlaces(lat, lng, 5.0, category) 
+    if (!keyword || selectedPlace) {
+      fetchTopPlaces(lat, lng, 5.0, category) 
+    }
     setLastSearchInfo({ lat, lng, keyword, category, level })
   }
 
@@ -170,13 +202,9 @@ const MapPage = () => {
   useEffect(() => {
     const handleResize = () => {
       const currentWidth = window.innerWidth
-      if (currentWidth === lastWidth.current) return // 너비가 변하지 않았다면(키보드 등 높이만 변한 경우) 무시
-      
-      if (currentWidth >= 1024) {
-        setIsSidebarOpen(true)
-      } else if (!selectedPlace) {
-        setIsSidebarOpen(false)
-      }
+      if (currentWidth === lastWidth.current) return
+      if (currentWidth >= 1024) setIsSidebarOpen(true)
+      else if (!selectedPlace) setIsSidebarOpen(false)
       lastWidth.current = currentWidth
     }
     window.addEventListener('resize', handleResize)
@@ -222,15 +250,18 @@ const MapPage = () => {
     }
   }
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSearch = (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
     if (map) performSearch(map, searchKeyword, selectedCategory, true)
     if (window.innerWidth < 1024) setIsSidebarOpen(true)
   }
 
-  const handleMoveToCurrentLocation = () => {
-    updateCurrentLocation()
+  const clearSearch = () => {
+    setSearchKeyword('')
+    if (map) performSearch(map, '', selectedCategory, true)
   }
+
+  const handleMoveToCurrentLocation = () => updateCurrentLocation()
 
   const handleAdminButtonClick = () => {
     if (user?.role !== 'ADMIN') return alert('관리자 권한이 없습니다.')
@@ -277,7 +308,9 @@ const MapPage = () => {
     scrollRef.current.scrollLeft = scrollLeft.current - walk
   }
 
-  const filteredPlaces = isFavoriteMode ? favorites : topPlaces
+  const filteredPlaces = isFavoriteMode 
+    ? favorites 
+    : (searchKeyword ? places : topPlaces)
 
   return (
     <div className={S.container}>
@@ -285,8 +318,9 @@ const MapPage = () => {
         <div className={S.mobileSearchContainer}>
           <div className={S.mobileSearchBar}>
             <button onClick={() => { setSelectedPlace(null); setIsSidebarOpen(true); }} className={S.mobileMenuBtn}><Menu size={20} className="text-[#FFB800]" /></button>
-            <form onSubmit={handleSearch} className="flex-1">
+            <form onSubmit={handleSearch} className="flex-1 relative">
               <input type="text" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} placeholder="장소 검색" className={S.mobileInput} />
+              {searchKeyword && <button type="button" onClick={clearSearch} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-300"><X size={16} /></button>}
             </form>
           </div>
           {!selectedPlace && (
@@ -323,90 +357,125 @@ const MapPage = () => {
         className={S.sidebarWrapper(selectedPlace, isSidebarOpen)}
       >
         {selectedPlace && <div className={S.dragHandleWrapper}><div className={S.dragHandle} /></div>}
-        {(!selectedPlace || window.innerWidth >= 1024) && (
-          <div className={S.sidebarHeader}>
-            <div className={S.logoWrapper}>
-              <div className={S.logoContainer}>
-                <img src="/puppynote-icon.png" alt="Logo" className={S.logoImage} />
-                <span className={S.logoText}>PUPPYMAP</span>
-              </div>
-              <button onClick={() => setIsSidebarOpen(false)} className={S.sidebarCloseBtn}><X size={24} className="text-gray-400" /></button>
+        
+        <div className={S.sidebarHeader}>
+          <div className={S.logoWrapper}>
+            <div className={S.logoContainer}>
+              <img src="/puppynote-icon.png" alt="Logo" className={S.logoImage} />
+              <span className={S.logoText}>PUPPYMAP</span>
             </div>
-            
-            <form onSubmit={handleSearch} className="relative group mb-4">
-              <input type="text" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} placeholder="산책하기 좋은 곳을 찾아보세요" className={S.searchInput} />
-              <Search className={S.searchIcon} size={20} />
-            </form>
-
-            <div ref={scrollRef} onWheel={handleWheel} onMouseDown={onDragStart} onMouseMove={onDragMove} onMouseUp={onDragEnd} onMouseLeave={onDragEnd} className={S.filterScrollRow}>
-              <button onClick={() => { if (!isLoggedIn) setIsLoginModalOpen(true); else setIsFavoriteMode(!isFavoriteMode); }} className={`${S.filterBadge} ${isFavoriteMode ? 'bg-red-50 border-red-200 text-red-500 shadow-sm' : S.filterBadgeInactive} flex items-center space-x-1`}>
-                <Heart size={14} fill={isFavoriteMode ? "white" : "transparent"} />
-                <span>즐겨찾기</span>
-              </button>
-              <button onClick={() => { setSelectedCategory('ALL'); setIsFavoriteMode(false); }} className={`${S.filterBadge} ${!isFavoriteMode && selectedCategory === 'ALL' ? S.filterBadgeActive : S.filterBadgeInactive}`}>전체</button>
-              {(Object.keys(CATEGORY_LABELS) as Category[]).map((cat) => (
-                <button key={cat} onClick={() => { setSelectedCategory(cat); setIsFavoriteMode(false); }} className={`${S.filterBadge} ${!isFavoriteMode && selectedCategory === cat ? S.filterBadgeActive : S.filterBadgeInactive}`}>{CATEGORY_LABELS[cat]}</button>
-              ))}
-            </div>
+            <button onClick={() => setIsSidebarOpen(false)} className={S.sidebarCloseBtn}><X size={24} className="text-gray-400" /></button>
           </div>
-        )}
+          
+          <div className="relative group mb-4">
+            <form onSubmit={handleSearch}>
+              <input type="text" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} placeholder="산책하기 좋은 곳을 찾아보세요" className={S.searchInput} />
+            </form>
+            <button onClick={() => handleSearch()} className={S.searchIconBtn}>
+              <Search size={20} />
+            </button>
+            {searchKeyword && (
+              <button onClick={clearSearch} className={S.searchClearBtn}>
+                <X size={18} />
+              </button>
+            )}
+          </div>
 
-        <div className={`${S.contentArea} ${selectedPlace ? 'flex-none' : 'flex-1'}`}>
+          <div ref={scrollRef} onWheel={handleWheel} onMouseDown={onDragStart} onMouseMove={onDragMove} onMouseUp={onDragEnd} onMouseLeave={onDragEnd} className={S.filterScrollRow}>
+            <button onClick={() => { if (!isLoggedIn) setIsLoginModalOpen(true); else setIsFavoriteMode(!isFavoriteMode); }} className={`${S.filterBadge} ${isFavoriteMode ? 'bg-red-50 border-red-200 text-red-500 shadow-sm' : S.filterBadgeInactive} flex items-center space-x-1`}>
+              <Heart size={14} fill={isFavoriteMode ? "white" : "transparent"} />
+              <span>즐겨찾기</span>
+            </button>
+            <button onClick={() => { setSelectedCategory('ALL'); setIsFavoriteMode(false); }} className={`${S.filterBadge} ${!isFavoriteMode && selectedCategory === 'ALL' ? S.filterBadgeActive : S.filterBadgeInactive}`}>전체</button>
+            {(Object.keys(CATEGORY_LABELS) as Category[]).map((cat) => (
+              <button key={cat} onClick={() => { setSelectedCategory(cat); setIsFavoriteMode(false); }} className={`${S.filterBadge} ${!isFavoriteMode && selectedCategory === cat ? S.filterBadgeActive : S.filterBadgeInactive}`}>{CATEGORY_LABELS[cat]}</button>
+            ))}
+          </div>
+        </div>
+
+        <div className={`${S.contentArea} flex-1 relative ${selectedPlace ? 'bg-white' : ''}`}>
           {selectedPlace ? (
-            <div className={S.detailContainer}>
-              <div className={S.detailHeader}>
-                <button onClick={() => setSelectedPlace(null)} className={S.backButton}><ArrowLeft size={16} className="mr-1" /> {isFavoriteMode ? '즐겨찾기' : '목록으로'}</button>
-                <div className="flex-1 lg:hidden" />
-                <div className="flex items-center space-x-2">
-                  {user?.role === 'ADMIN' && <button onClick={() => handleDeletePlace(selectedPlace.id)} className={S.adminDeleteBtn}><Trash2 size={22} /></button>}
-                  <button onClick={handleCloseDetail} className={S.detailCloseBtn}><X size={24} className="text-gray-400" /></button>
+            <div className="absolute inset-0 z-[50] bg-white flex flex-col animate-in slide-in-from-bottom lg:slide-in-from-left duration-300 overflow-y-auto no-scrollbar">
+              <div className="p-6 pt-0 flex-1">
+                <div className={S.detailHeader}>
+                  <button onClick={() => setSelectedPlace(null)} className={S.backButton}>
+                    <ArrowLeft size={16} className="mr-1" /> 
+                    {isFavoriteMode ? '즐겨찾기' : '목록으로'}
+                  </button>
+                  <div className="flex-1" />
+                  {user?.role === 'ADMIN' && (
+                    <button onClick={() => handleDeletePlace(selectedPlace.id)} className={S.adminDeleteBtn}>
+                      <Trash2 size={22} />
+                    </button>
+                  )}
+                </div>
+                <div className="pb-10">
+                  <PlaceDetailCard 
+                    place={selectedPlace} 
+                    isLoggedIn={isLoggedIn} 
+                    isFavorite={favorites.some(f => f.id === selectedPlace.id)} 
+                    onLoginRequired={() => setIsLoginModalOpen(true)} 
+                    onToggleLike={async (id) => { try { await toggleLike(id) } catch (err) {} }} 
+                    onToggleFavorite={(id) => toggleFavorite(id)} 
+                  />
                 </div>
               </div>
-              <PlaceDetailCard place={selectedPlace} isLoggedIn={isLoggedIn} isFavorite={favorites.some(f => f.id === selectedPlace.id)} onLoginRequired={() => setIsLoginModalOpen(true)} onToggleLike={async (id) => { try { await toggleLike(id) } catch (err) { /* alert 제거 */ } }} onToggleFavorite={(id) => toggleFavorite(id)} />
             </div>
           ) : (
             <div className="pb-10 px-6">
               <div className={S.sectionTitleRow}>
                 <div className="flex flex-col">
                   <h2 className={S.sectionTitle}>
-                    {isFavoriteMode ? <><Heart size={18} className="text-red-400 fill-red-400 mr-2" />나의 즐겨찾기</> : <><Star size={18} className="text-[#FFB800] fill-[#FFB800] mr-2" />인기 산책 장소 Top 20</>}
+                    {isFavoriteMode 
+                      ? <><Heart size={18} className="text-red-400 fill-red-400 mr-2" />나의 즐겨찾기</> 
+                      : (searchKeyword 
+                          ? <><Search size={18} className="text-[#FFB800] mr-2" />'{searchKeyword}' 검색 결과</>
+                          : <><Star size={18} className="text-[#FFB800] fill-[#FFB800] mr-2" />인기 산책 장소 Top 20</>
+                        )
+                    }
                   </h2>
-                  <span className={S.sectionSubtitle}>{isFavoriteMode ? '저장한 장소 목록입니다.' : '(현재 지도 중심 기준입니다.)'}</span>
+                  <span className={S.sectionSubtitle}>
+                    {isFavoriteMode 
+                      ? '저장한 장소 목록입니다.' 
+                      : (searchKeyword ? `총 ${placesPage.totalElement}개의 장소를 찾았습니다.` : '(현재 지도 중심 기준입니다.)')
+                    }
+                  </span>
                 </div>
                 {isLoading && <div className={S.loadingSpinner} />}
               </div>
               <div className="space-y-4">
                 {filteredPlaces.length > 0 ? filteredPlaces.map((place, index) => (
-                  <PlaceListItemCard key={place.id} place={place} index={index} onClick={(p) => { setSelectedPlace(p); setIsSidebarOpen(true); panToPlace(p.latitude, p.longitude); }} />
-                )) : <div className={S.emptyState}>해당 카테고리의 장소가 없습니다.</div>}
+                  <PlaceListItemCard key={place.id} place={place} index={searchKeyword ? undefined : index} onClick={(p) => { setSelectedPlace(p); setIsSidebarOpen(true); panToPlace(p.latitude, p.longitude); }} />
+                )) : <div className={S.emptyState}>{searchKeyword ? '검색 결과가 없습니다.' : '해당 카테고리의 장소가 없습니다.'}</div>}
+              </div>
+              <div ref={observerTarget} className="h-10 w-full flex items-center justify-center">
+                {isLoading && filteredPlaces.length > 0 && <div className={S.loadingSpinner} />}
               </div>
             </div>
           )}
         </div>
 
-        {!selectedPlace && (
-          <div className={S.sidebarFooter}>
-            {isLoggedIn ? (
-              <div className="flex items-center space-x-2">
-                {user?.role === 'ADMIN' && (
-                  <button onClick={handleAdminButtonClick} className={S.adminMenuBtn}>
-                    <ShieldCheck size={16} />
-                    <span>관리자</span>
-                  </button>
-                )}
-                <button onClick={logout} className={S.logoutBtn}>
-                  <LogOut size={16} />
-                  <span>로그아웃</span>
+        <div className={S.sidebarFooter}>
+          {isLoggedIn ? (
+            <div className="flex items-center space-x-2">
+              {user?.role === 'ADMIN' && (
+                <button onClick={handleAdminButtonClick} className={S.adminMenuBtn}>
+                  <ShieldCheck size={16} />
+                  <span>관리자</span>
                 </button>
-              </div>
-            ) : (
-              <button onClick={() => setIsLoginModalOpen(true)} className={S.loginTriggerBtn}>
-                <User size={16} />
-                <span>로그인 / 회원가입</span>
+              )}
+              <button onClick={logout} className={S.logoutBtn}>
+                <LogOut size={16} />
+                <span>로그아웃</span>
               </button>
-            )}
-          </div>
-        )}
+            </div>
+          ) : (
+            <button onClick={() => setIsLoginModalOpen(true)} className={S.loginTriggerBtn}>
+              <User size={16} />
+              <span>로그인 / 회원가입</span>
+            </button>
+          )}
+        </div>
       </aside>
 
       <main className={S.mapMain}>
@@ -462,6 +531,7 @@ const S = {
     flex flex-col border-r border-gray-100 
     z-[150] shadow-2xl bg-white 
     transition-all duration-300 ease-in-out
+    relative overflow-hidden
     ${selected ? 'h-fit max-h-[90dvh] lg:h-full rounded-t-[32px] lg:rounded-none bottom-0 left-0 right-0 top-auto' : 'h-full top-0 left-0 right-0'}
     ${isOpen ? 'translate-y-0 lg:translate-x-0' : 'translate-y-full lg:-translate-x-full'}
   `,
@@ -477,7 +547,7 @@ const S = {
   `,
 
   sidebarHeader: `
-    p-6 pb-4
+    p-6 pb-4 bg-white shrink-0
   `,
 
   logoWrapper: `
@@ -505,17 +575,23 @@ const S = {
   `,
 
   searchInput: `
-    w-full pl-12 pr-4 py-3.5 
+    w-full pl-12 pr-12 py-3.5 
     bg-gray-50 border border-transparent rounded-2xl 
     focus:bg-white focus:ring-2 focus:ring-[#FFB800] 
     focus:border-transparent transition-all 
     outline-none shadow-sm
   `,
 
-  searchIcon: `
-    absolute left-4 top-4 
-    text-gray-400 group-focus-within:text-[#FFB800] 
-    transition-colors
+  searchIconBtn: `
+    absolute left-4 top-1/2 -translate-y-1/2 
+    text-gray-400 hover:text-[#FFB800] 
+    transition-colors cursor-pointer z-10
+  `,
+
+  searchClearBtn: `
+    absolute right-4 top-1/2 -translate-y-1/2 
+    text-gray-300 hover:text-gray-600 
+    transition-colors cursor-pointer z-10
   `,
 
   filterScrollRow: `
@@ -525,8 +601,8 @@ const S = {
   `,
 
   contentArea: `
-    flex-1 overflow-y-auto py-2 
-    bg-gray-50/50 min-h-0 no-scrollbar
+    flex-1 overflow-y-auto 
+    min-h-0 no-scrollbar
   `,
 
   detailContainer: `
@@ -535,23 +611,18 @@ const S = {
   `,
 
   detailHeader: `
-    flex justify-between items-center mb-4
+    flex justify-between items-center mb-6
   `,
 
   backButton: `
-    text-sm font-medium text-gray-500 
-    flex items-center hover:text-gray-800 
-    transition-colors hidden lg:flex
+    text-sm font-bold text-[#FFB800] 
+    flex items-center hover:text-[#E6A600] 
+    transition-colors
   `,
 
   adminDeleteBtn: `
     p-2 text-red-500 
     hover:bg-red-50 rounded-full transition-colors
-  `,
-
-  detailCloseBtn: `
-    p-2 hover:bg-gray-100 
-    rounded-full hidden lg:block
   `,
 
   sectionTitleRow: `
