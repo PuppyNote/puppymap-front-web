@@ -31,46 +31,45 @@ const MapPage = () => {
   })
   
   const updateCurrentLocation = (isAuto = false) => {
-    if (navigator.geolocation) {
-      const options = {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 30000
-      }
-
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords
-          const newPos = { lat: latitude, lng: longitude }
-          setCurrentPosition(newPos)
-          localStorage.setItem('last-position', JSON.stringify(newPos)) // 위치 저장
-          if (map) map.setCenter(new kakao.maps.LatLng(latitude, longitude))
-        },
-        (error) => {
-          console.error('Geolocation error:', error)
-          if (error.code === error.TIMEOUT || error.code === error.POSITION_UNAVAILABLE) {
-            navigator.geolocation.getCurrentPosition(
-              (pos) => {
-                const { latitude, longitude } = pos.coords
-                const newPos = { lat: latitude, lng: longitude }
-                setCurrentPosition(newPos)
-                localStorage.setItem('last-position', JSON.stringify(newPos)) // 위치 저장
-                if (map) map.setCenter(new kakao.maps.LatLng(latitude, longitude))
-              },
-              (err) => {
-                if (!isAuto) alert('위치 정보를 가져올 수 없습니다. 위치 권한을 확인해주세요.')
-              },
-              { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }
-            )
-          } else if (!isAuto) {
-            alert('위치 정보를 가져올 수 없습니다. 위치 권한을 확인해주세요.')
-          }
-        },
-        options
-      )
-    } else if (!isAuto) {
-      alert('이 브라우저에서는 위치 정보를 지원하지 않습니다.')
+    if (!navigator.geolocation) {
+      if (!isAuto) alert('이 브라우저에서는 위치 정보를 지원하지 않습니다.')
+      return
     }
+
+    const handleSuccess = (position: GeolocationPosition) => {
+      const { latitude, longitude } = position.coords
+      const newPos = { lat: latitude, lng: longitude }
+      setCurrentPosition(newPos)
+      localStorage.setItem('last-position', JSON.stringify(newPos))
+      if (map) map.setCenter(new kakao.maps.LatLng(latitude, longitude))
+    }
+
+    const handleError = (error: GeolocationPositionError) => {
+      console.error('Geolocation error:', error)
+      
+      if (error.code === error.PERMISSION_DENIED) {
+        if (!isAuto) {
+          alert('위치 권한이 거부되었습니다. 설정 > 개인정보 보호 > 위치 서비스에서 브라우저(Safari/Chrome)의 위치 권한을 "사용하는 동안"으로 허용해주세요.')
+        }
+      } else if (error.code === error.TIMEOUT || error.code === error.POSITION_UNAVAILABLE) {
+        // 신호가 약할 경우 일반 정확도로 재시도
+        navigator.geolocation.getCurrentPosition(
+          handleSuccess,
+          (err) => {
+            if (!isAuto) alert('위치 정보를 가져올 수 없습니다. GPS 신호가 약하거나 위치 서비스가 꺼져있을 수 있습니다.')
+          },
+          { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+        )
+      } else if (!isAuto) {
+        alert('위치 정보를 가져오는데 실패했습니다.')
+      }
+    }
+
+    navigator.geolocation.getCurrentPosition(handleSuccess, handleError, {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 30000
+    })
   }
 
   useEffect(() => {
@@ -150,7 +149,6 @@ const MapPage = () => {
   }
 
   const performSearch = (mapObj: kakao.maps.Map, keyword: string, category: Category | 'ALL', force: boolean = false) => {
-    if (isFavoriteMode) return
     const center = mapObj.getCenter()
     const lat = center.getLat()
     const lng = center.getLng()
