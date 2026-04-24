@@ -127,12 +127,20 @@ const MapPage = () => {
 
   useEffect(() => { if (isLoggedIn) fetchFavorites() }, [isLoggedIn])
 
+  const lastWidth = useRef(window.innerWidth)
+
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth >= 1024) setIsSidebarOpen(true)
-      else if (!selectedPlace) setIsSidebarOpen(false)
+      const currentWidth = window.innerWidth
+      if (currentWidth === lastWidth.current) return // 너비가 변하지 않았다면(키보드 등 높이만 변한 경우) 무시
+      
+      if (currentWidth >= 1024) {
+        setIsSidebarOpen(true)
+      } else if (!selectedPlace) {
+        setIsSidebarOpen(false)
+      }
+      lastWidth.current = currentWidth
     }
-    handleResize()
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [selectedPlace])
