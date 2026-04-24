@@ -17,7 +17,18 @@ const MapPage = () => {
   const [selectedCategory, setSelectedCategory] = useState<Category | 'ALL'>('ALL')
   const [isFavoriteMode, setIsFavoriteMode] = useState(false)
   const [map, setMap] = useState<kakao.maps.Map>()
-  const [currentPosition, setCurrentPosition] = useState<{ lat: number; lng: number }>({ lat: 37.5665, lng: 126.978 })
+  // 로컬 스토리지에서 마지막 위치 불러오기 (없으면 서울시청)
+  const [currentPosition, setCurrentPosition] = useState<{ lat: number; lng: number }>(() => {
+    const saved = localStorage.getItem('last-position')
+    if (saved) {
+      try {
+        return JSON.parse(saved)
+      } catch (e) {
+        return { lat: 37.5665, lng: 126.978 }
+      }
+    }
+    return { lat: 37.5665, lng: 126.978 }
+  })
   
   const updateCurrentLocation = (isAuto = false) => {
     if (navigator.geolocation) {
@@ -32,17 +43,18 @@ const MapPage = () => {
           const { latitude, longitude } = position.coords
           const newPos = { lat: latitude, lng: longitude }
           setCurrentPosition(newPos)
+          localStorage.setItem('last-position', JSON.stringify(newPos)) // 위치 저장
           if (map) map.setCenter(new kakao.maps.LatLng(latitude, longitude))
         },
         (error) => {
           console.error('Geolocation error:', error)
-          // 높은 정확도로 실패 시 일반 정확도로 재시도 (아이폰 등 모바일 최적화)
           if (error.code === error.TIMEOUT || error.code === error.POSITION_UNAVAILABLE) {
             navigator.geolocation.getCurrentPosition(
               (pos) => {
                 const { latitude, longitude } = pos.coords
                 const newPos = { lat: latitude, lng: longitude }
                 setCurrentPosition(newPos)
+                localStorage.setItem('last-position', JSON.stringify(newPos)) // 위치 저장
                 if (map) map.setCenter(new kakao.maps.LatLng(latitude, longitude))
               },
               (err) => {
@@ -63,10 +75,10 @@ const MapPage = () => {
 
   useEffect(() => {
     updateCurrentLocation(true)
-  }, []) // 마운트 시 즉시 요청
+  }, [])
 
   useEffect(() => {
-    if (map && currentPosition.lat !== 37.5665) {
+    if (map) {
       map.setCenter(new kakao.maps.LatLng(currentPosition.lat, currentPosition.lng))
     }
   }, [map])
