@@ -21,6 +21,12 @@ const MapPage = () => {
   
   const updateCurrentLocation = (isAuto = false) => {
     if (navigator.geolocation) {
+      const options = {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 30000
+      }
+
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords
@@ -30,11 +36,25 @@ const MapPage = () => {
         },
         (error) => {
           console.error('Geolocation error:', error)
-          if (!isAuto) {
+          // 높은 정확도로 실패 시 일반 정확도로 재시도 (아이폰 등 모바일 최적화)
+          if (error.code === error.TIMEOUT || error.code === error.POSITION_UNAVAILABLE) {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                const { latitude, longitude } = pos.coords
+                const newPos = { lat: latitude, lng: longitude }
+                setCurrentPosition(newPos)
+                if (map) map.setCenter(new kakao.maps.LatLng(latitude, longitude))
+              },
+              (err) => {
+                if (!isAuto) alert('위치 정보를 가져올 수 없습니다. 위치 권한을 확인해주세요.')
+              },
+              { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }
+            )
+          } else if (!isAuto) {
             alert('위치 정보를 가져올 수 없습니다. 위치 권한을 확인해주세요.')
           }
         },
-        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+        options
       )
     } else if (!isAuto) {
       alert('이 브라우저에서는 위치 정보를 지원하지 않습니다.')
@@ -43,6 +63,12 @@ const MapPage = () => {
 
   useEffect(() => {
     updateCurrentLocation(true)
+  }, []) // 마운트 시 즉시 요청
+
+  useEffect(() => {
+    if (map && currentPosition.lat !== 37.5665) {
+      map.setCenter(new kakao.maps.LatLng(currentPosition.lat, currentPosition.lng))
+    }
   }, [map])
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024)
