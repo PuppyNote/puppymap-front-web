@@ -45,7 +45,7 @@ const MapPage = () => {
     updateCurrentLocation(true)
   }, [map])
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024)
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false)
