@@ -12,32 +12,7 @@ import { PlaceDetailCard } from '../components/common/PlaceDetailCard'
 import { PlaceListItemCard } from '../components/common/PlaceListItemCard'
 
 const MapPage = () => {
-  const [searchKeyword, setSearchKeyword] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState<Category | 'ALL'>('ALL')
-  const [isFavoriteMode, setIsFavoriteMode] = useState(false)
-  const [map, setMap] = useState<kakao.maps.Map>()
-  
-  const [currentPosition, setCurrentPosition] = useState<{ lat: number; lng: number }>(() => {
-    const saved = localStorage.getItem('last-position')
-    if (saved) {
-      try {
-        return JSON.parse(saved)
-      } catch (e) {
-        return { lat: 37.5665, lng: 126.978 }
-      }
-    }
-    return { lat: 37.5665, lng: 126.978 }
-  })
-
-  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024)
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
-  const [isReportModalOpen, setIsReportModalOpen] = useState(false)
-  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false)
-  const [isSelectingLocation, setIsSelectingLocation] = useState(false)
-  const [tempReportPosition, setTempReportPosition] = useState<{ lat: number; lng: number } | null>(null)
-  const [touchStart, setTouchStart] = useState<number | null>(null)
-  const [touchOffset, setTouchOffset] = useState(0)
-
+  // 1. Hooks & Store
   const { 
     topPlaces, places, favorites, selectedPlace, isLoading, 
     placesPage, topPlacesPage,
@@ -47,14 +22,30 @@ const MapPage = () => {
 
   const { isLoggedIn, logout, user } = useAuthStore()
 
-  const lastSearchInfo = useRef<{
-    lat: number;
-    lng: number;
-    keyword: string;
-    category: Category | 'ALL';
-    level: number;
-  } | null>(null)
+  // 2. State 정의
+  const [searchKeyword, setSearchKeyword] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState<Category | 'ALL'>('ALL')
+  const [isFavoriteMode, setIsFavoriteMode] = useState(false)
+  const [map, setMap] = useState<kakao.maps.Map>()
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false)
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false)
+  const [isSelectingLocation, setIsSelectingLocation] = useState(false)
+  const [tempReportPosition, setTempReportPosition] = useState<{ lat: number; lng: number } | null>(null)
+  const [touchStart, setTouchStart] = useState<number | null>(null)
+  const [touchOffset, setTouchOffset] = useState(0)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024)
 
+  const [currentPosition, setCurrentPosition] = useState<{ lat: number; lng: number }>(() => {
+    const saved = localStorage.getItem('last-position')
+    if (saved) {
+      try { return JSON.parse(saved) } catch (e) { return { lat: 37.5665, lng: 126.978 } }
+    }
+    return { lat: 37.5665, lng: 126.978 }
+  })
+
+  // 3. Refs & Timer
+  const lastSearchInfo = useRef<{ lat: number; lng: number; keyword: string; category: Category | 'ALL'; level: number } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
   const startX = useRef(0)
@@ -62,6 +53,7 @@ const MapPage = () => {
   const observerTarget = useRef<HTMLDivElement>(null)
   const [timer, setTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
 
+  // 4. Logic & Utility Functions
   const getDynamicRadius = (level: number) => {
     if (level <= 3) return 0.5
     if (level === 4) return 1.0
@@ -84,7 +76,6 @@ const MapPage = () => {
       if (!isAuto) alert('이 브라우저에서는 위치 정보를 지원하지 않습니다.')
       return
     }
-
     const handleSuccess = (position: GeolocationPosition) => {
       const { latitude, longitude } = position.coords
       const newPos = { lat: latitude, lng: longitude }
@@ -92,7 +83,6 @@ const MapPage = () => {
       localStorage.setItem('last-position', JSON.stringify(newPos))
       if (map) map.setCenter(new kakao.maps.LatLng(latitude, longitude))
     }
-
     const handleError = (error: GeolocationPositionError) => {
       if (error.code === error.PERMISSION_DENIED) {
         if (!isAuto) alert('위치 권한이 거부되었습니다. 설정에서 허용해주세요.')
@@ -100,12 +90,7 @@ const MapPage = () => {
         navigator.geolocation.getCurrentPosition(handleSuccess, () => {}, { enableHighAccuracy: false, timeout: 10000 })
       }
     }
-
-    navigator.geolocation.getCurrentPosition(handleSuccess, handleError, {
-      enableHighAccuracy: true,
-      timeout: 15000,
-      maximumAge: 30000
-    })
+    navigator.geolocation.getCurrentPosition(handleSuccess, handleError, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 })
   }, [map])
 
   const performSearch = useCallback((mapObj: kakao.maps.Map, keyword: string, category: Category | 'ALL', force: boolean = false) => {
@@ -114,19 +99,16 @@ const MapPage = () => {
     const lng = center.getLng()
     const level = mapObj.getLevel()
     const radius = getDynamicRadius(level)
-    
     if (!force && lastSearchInfo.current) {
       const distance = getDistance(lat, lng, lastSearchInfo.current.lat, lastSearchInfo.current.lng)
       if (distance < 0.2 && keyword === lastSearchInfo.current.keyword && category === lastSearchInfo.current.category && level === lastSearchInfo.current.level) return
     }
-
     fetchPlaces(keyword, lat, lng, radius, category)
     if (!keyword || selectedPlace) fetchTopPlaces(lat, lng, 5.0, category) 
     lastSearchInfo.current = { lat, lng, keyword, category, level }
   }, [fetchPlaces, fetchTopPlaces, selectedPlace])
 
   const handleMapCreate = useCallback((mapObj: kakao.maps.Map) => { setMap(mapObj) }, [])
-
   const handleMapIdle = useCallback((mapObj: kakao.maps.Map) => {
     if (timer) clearTimeout(timer)
     const newTimer = setTimeout(() => { performSearch(mapObj, searchKeyword, selectedCategory) }, 1000)
@@ -138,10 +120,7 @@ const MapPage = () => {
       setTempReportPosition({ lat: mouseEvent.latLng.getLat(), lng: mouseEvent.latLng.getLng() })
       return
     }
-    if (window.innerWidth < 1024) {
-      setIsSidebarOpen(false)
-      setSelectedPlace(null)
-    }
+    if (window.innerWidth < 1024) { setIsSidebarOpen(false); setSelectedPlace(null); }
   }, [isSelectingLocation, setSelectedPlace])
 
   const handleSearch = (e?: React.FormEvent) => {
@@ -150,24 +129,13 @@ const MapPage = () => {
     if (window.innerWidth < 1024) setIsSidebarOpen(true)
   }
 
-  const clearSearch = () => {
-    setSearchKeyword('')
-    if (map) performSearch(map, '', selectedCategory, true)
-  }
-
-  const handleCloseDetail = () => {
-    setIsSidebarOpen(false)
-    setTouchOffset(0)
-    setTimeout(() => { setSelectedPlace(null) }, 300)
-  }
+  const clearSearch = () => { setSearchKeyword(''); if (map) performSearch(map, '', selectedCategory, true); }
+  const handleCloseDetail = () => { setIsSidebarOpen(false); setTouchOffset(0); setTimeout(() => { setSelectedPlace(null) }, 300); }
+  const handleAdminButtonClick = () => { if (user?.role !== 'ADMIN') return alert('관리자 권한이 없습니다.'); setIsAdminModalOpen(true); }
 
   const handleDeletePlace = async (placeId: number) => {
     if (!window.confirm('정말 이 장소를 삭제하시겠습니까?')) return
-    try {
-      await deletePlace(placeId)
-      alert('장소가 삭제되었습니다.')
-      setSelectedPlace(null)
-    } catch (err) {}
+    try { await deletePlace(placeId); alert('장소가 삭제되었습니다.'); setSelectedPlace(null); } catch (err) {}
   }
 
   const panToPlace = useCallback((lat: number, lng: number) => {
@@ -178,9 +146,10 @@ const MapPage = () => {
     if (window.innerWidth < 1024) { setTimeout(() => { map.panBy(0, 180) }, 100) }
   }, [map])
 
+  // 6. Effects
   useEffect(() => { updateCurrentLocation(true) }, [])
+  useEffect(() => { if (map) map.setCenter(new kakao.maps.LatLng(currentPosition.lat, currentPosition.lng)) }, [map])
   useEffect(() => { if (isLoggedIn) fetchFavorites() }, [isLoggedIn, fetchFavorites])
-
   useEffect(() => {
     if (map) {
       if (isFavoriteMode) {
@@ -215,6 +184,7 @@ const MapPage = () => {
     return () => observer.disconnect()
   }, [isLoading, isFavoriteMode, searchKeyword, selectedCategory, map, selectedPlace, fetchMorePlaces, fetchMoreTopPlaces])
 
+  // 7. Render Helpers
   const filteredPlaces = isFavoriteMode ? favorites : (searchKeyword ? places : topPlaces)
   const mapMarkers = [...places]
   topPlaces.forEach(tp => { if (!mapMarkers.some(m => m.id === tp.id)) mapMarkers.push(tp) })
@@ -249,7 +219,7 @@ const MapPage = () => {
 
   return (
     <div className={S.container}>
-      {/* 1. 사이드바 / 하단 시트 (웹에서는 왼쪽에 위치하도록 앞에 배치) */}
+      {/* 1. 사이드바 (데스크톱 기준 왼쪽 고정) */}
       <aside 
         onTouchStart={(e) => handleDragStartInternal(e.touches[0].clientY)} 
         onTouchMove={(e) => handleDragMoveInternal(e.touches[0].clientY)} 
@@ -263,8 +233,8 @@ const MapPage = () => {
       >
         {selectedPlace && <div className={S.dragHandleWrapper}><div className={S.dragHandle} /></div>}
         
-        {/* 헤더 영역 (웹 상시, 모바일 목록 시만) */}
-        {(window.innerWidth >= 1024 || (!selectedPlace && isSidebarOpen)) && (
+        {/* 상단 헤더: 웹 상시 노출 / 모바일 상세 시 숨김 */}
+        {(window.innerWidth >= 1024 || !selectedPlace) && (
           <div className={S.sidebarHeader}>
             <div className={S.logoWrapper}>
               <div className={S.logoContainer}><img src="/puppynote-icon.png" alt="Logo" className={S.logoImage} /><span className={S.logoText}>PUPPYMAP</span></div>
@@ -276,22 +246,25 @@ const MapPage = () => {
               {searchKeyword && <button onClick={clearSearch} className={S.searchClearBtn}><X size={18} /></button>}
             </div>
             <div ref={scrollRef} onWheel={(e) => { if(scrollRef.current) scrollRef.current.scrollLeft += e.deltaY }} onMouseDown={onDragStartScroll} onMouseMove={onDragMoveScroll} onMouseUp={() => { isDragging.current = false }} onMouseLeave={() => { isDragging.current = false }} className={S.filterScrollRow}>
-              <button onClick={() => !isLoggedIn ? setIsLoginModalOpen(true) : setIsFavoriteMode(!isFavoriteMode)} className={`${S.filterBadge} ${isFavoriteMode ? 'bg-red-50 border-red-200 text-red-500 shadow-sm' : S.filterBadgeInactive} flex items-center space-x-1`}><Heart size={14} fill={isFavoriteMode ? "white" : "transparent"} /><span>즐겨찾기</span></button>
+              <button onClick={() => !isLoggedIn ? setIsLoginModalOpen(true) : setIsFavoriteMode(!isFavoriteMode)} className={`${S.filterBadge} ${isFavoriteMode ? 'bg-red-50 border-red-200 text-red-500 shadow-sm' : S.filterBadgeInactive} flex items-center space-x-1`}><Heart size={14} fill={isFavoriteMode ? "white" : "transparent"} /><span className="whitespace-nowrap">즐겨찾기</span></button>
               <button onClick={() => { setSelectedCategory('ALL'); setIsFavoriteMode(false); }} className={`${S.filterBadge} ${!isFavoriteMode && selectedCategory === 'ALL' ? S.filterBadgeActive : S.filterBadgeInactive}`}>전체</button>
               {(Object.keys(CATEGORY_LABELS) as Category[]).map((cat) => (<button key={cat} onClick={() => { setSelectedCategory(cat); setIsFavoriteMode(false); }} className={`${S.filterBadge} ${!isFavoriteMode && selectedCategory === cat ? S.filterBadgeActive : S.filterBadgeInactive}`}>{CATEGORY_LABELS[cat]}</button>))}
             </div>
           </div>
         )}
 
+        {/* 중간 콘텐츠 영역: 리스트와 상세 정보가 여기서 교체(Swap)됨 */}
         <div className={`${S.contentArea} flex-1 relative ${selectedPlace ? 'bg-white' : 'bg-gray-50/50'}`}>
           {selectedPlace ? (
-            <div className="animate-in fade-in slide-in-from-bottom lg:slide-in-from-right-4 duration-300 min-h-full px-6 bg-white flex flex-col pt-2">
+            <div className="animate-in fade-in slide-in-from-right-4 duration-300 px-6 bg-white flex flex-col pt-2 h-full">
               <div className={S.detailHeader}>
                 <button onClick={() => setSelectedPlace(null)} className={S.backButton}><ArrowLeft size={16} className="mr-1" /> {isFavoriteMode ? '즐겨찾기' : '목록으로'}</button>
                 <div className="flex-1" />
                 {user?.role === 'ADMIN' && <button onClick={() => handleDeletePlace(selectedPlace.id)} className={S.adminDeleteBtn}><Trash2 size={22} /></button>}
               </div>
-              <div className="pb-10"><PlaceDetailCard place={selectedPlace} isLoggedIn={isLoggedIn} isFavorite={favorites.some(f => f.id === selectedPlace.id)} onLoginRequired={() => setIsLoginModalOpen(true)} onToggleLike={async (id) => { try { await toggleLike(id) } catch (err) {} }} onToggleFavorite={(id) => toggleFavorite(id)} /></div>
+              <div className="flex-1 overflow-y-auto no-scrollbar pb-10">
+                <PlaceDetailCard place={selectedPlace} isLoggedIn={isLoggedIn} isFavorite={favorites.some(f => f.id === selectedPlace.id)} onLoginRequired={() => setIsLoginModalOpen(true)} onToggleLike={async (id) => { try { await toggleLike(id) } catch (err) {} }} onToggleFavorite={(id) => toggleFavorite(id)} />
+              </div>
             </div>
           ) : (
             <div className="pb-10 px-6 pt-2 animate-in fade-in duration-300">
@@ -302,10 +275,11 @@ const MapPage = () => {
           )}
         </div>
 
-        {(window.innerWidth >= 1024 || (!selectedPlace && isSidebarOpen)) && (
+        {/* 하단 푸터: 웹 상시 노출 / 모바일 상세 시 숨김 */}
+        {(window.innerWidth >= 1024 || !selectedPlace) && (
           <div className={S.sidebarFooter}>
             {isLoggedIn ? (
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 w-full">
                 {user?.role === 'ADMIN' && <button onClick={handleAdminButtonClick} className={S.adminMenuBtn}><ShieldCheck size={16} /><span>관리자</span></button>}
                 <button onClick={logout} className={S.logoutBtn}><LogOut size={16} /><span>로그아웃</span></button>
               </div>
@@ -317,7 +291,7 @@ const MapPage = () => {
       {/* 2. 지도 영역 */}
       <main className={S.mapMain}>
         <Map center={currentPosition} style={{ width: '100%', height: '100%' }} level={3} onCreate={handleMapCreate} onIdle={handleMapIdle} onClick={handleMapClick} draggable={!isSelectingLocation} zoomable={!isSelectingLocation} onDragStart={() => { if (window.innerWidth < 1024 && selectedPlace) handleCloseDetail() }} onZoomStart={() => { if (window.innerWidth < 1024 && selectedPlace) handleCloseDetail() }}>
-          <MapMarker position={currentPosition} image={{ src: "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png", size: { width: 24, height: 35 } }} />
+          <MapMarker position={currentPosition} image={{ src: "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png", size: { width: 24, height: 35 } }} title="내 위치" />
           {isSelectingLocation && tempReportPosition && <MapMarker position={tempReportPosition} image={{ src: "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/marker_red.png", size: { width: 31, height: 35 } }} />}
           {mapMarkers.map((place) => (
             <MapMarker key={place.id} position={{ lat: place.latitude, lng: place.longitude }} image={{ src: "/puppynote-icon.png", size: { width: 24, height: 24 }, options: { offset: { x: 12, y: 24 } } }} onClick={() => { if(!isSelectingLocation) { setSelectedPlace(place); setIsSidebarOpen(true); panToPlace(place.latitude, place.longitude); } }} />
@@ -371,8 +345,8 @@ const S = {
     flex flex-col border-r border-gray-100 
     z-[250] shadow-2xl bg-white 
     transition-all duration-300 ease-in-out
-    overflow-hidden
-    ${selected ? 'h-fit max-h-[90dvh] lg:h-full rounded-t-[32px] lg:rounded-none bottom-0 left-0 right-0 top-auto' : 'h-full top-0 left-0 right-0'}
+    overflow-hidden h-full
+    ${selected ? 'max-h-[90dvh] lg:max-h-full rounded-t-[32px] lg:rounded-none bottom-0 left-0 right-0 top-auto' : 'top-0 left-0 right-0'}
     ${isOpen ? 'translate-y-0 lg:translate-x-0' : 'translate-y-full lg:-translate-x-full'}
   `,
   dragHandleWrapper: "w-full flex justify-center py-3 lg:hidden shrink-0",
