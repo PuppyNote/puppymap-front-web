@@ -287,16 +287,16 @@ const MapPage = () => {
     scrollRef.current.scrollLeft = scrollLeft.current - walk
   }
 
-  const handleDragStart = (y: number) => {
+  const handleDragStartInternal = (y: number) => {
     if (window.innerWidth >= 1024 || !selectedPlace) return
     setTouchStart(y)
   }
-  const handleDragMove = (y: number) => {
+  const handleDragMoveInternal = (y: number) => {
     if (window.innerWidth >= 1024 || touchStart === null || !selectedPlace) return
     const offset = y - touchStart
     if (offset > 0) setTouchOffset(offset)
   }
-  const handleDragEndAction = () => {
+  const handleDragEndInternal = () => {
     if (window.innerWidth >= 1024 || touchStart === null || !selectedPlace) return
     if (touchOffset > 120) handleCloseDetail()
     else setTouchOffset(0)
@@ -305,21 +305,21 @@ const MapPage = () => {
 
   return (
     <div className={S.container}>
-      {/* 1. 사이드바 (데스크톱 기준 왼쪽) */}
+      {/* 1. 사이드바 / 하단 시트 */}
       <aside 
-        onTouchStart={(e) => handleDragStart(e.touches[0].clientY)}
-        onTouchMove={(e) => handleDragMove(e.touches[0].clientY)}
-        onTouchEnd={handleDragEndAction}
-        onMouseDown={(e) => handleDragStart(e.clientY)}
-        onMouseMove={(e) => touchStart !== null && handleDragMove(e.clientY)}
-        onMouseUp={handleDragEndAction}
-        onMouseLeave={handleDragEndAction}
+        onTouchStart={(e) => handleDragStartInternal(e.touches[0].clientY)}
+        onTouchMove={(e) => handleDragMoveInternal(e.touches[0].clientY)}
+        onTouchEnd={handleDragEndInternal}
+        onMouseDown={(e) => handleDragStartInternal(e.clientY)}
+        onMouseMove={(e) => touchStart !== null && handleDragMoveInternal(e.clientY)}
+        onMouseUp={handleDragEndInternal}
+        onMouseLeave={handleDragEndInternal}
         style={window.innerWidth < 1024 && selectedPlace ? { transform: `translateY(${touchOffset}px)`, transition: touchStart === null ? 'transform 0.3s ease-out' : 'none' } : {}}
         className={S.sidebarWrapper(selectedPlace, isSidebarOpen)}
       >
         {selectedPlace && <div className={S.dragHandleWrapper}><div className={S.dragHandle} /></div>}
         
-        {/* 사이드바 헤더 */}
+        {/* 사이드바 헤더 (데스크톱 상시, 모바일은 목록 열렸을 때만) */}
         {(window.innerWidth >= 1024 || !selectedPlace) && (
           <div className={S.sidebarHeader}>
             <div className={S.logoWrapper}>
@@ -478,8 +478,8 @@ const MapPage = () => {
         </div>
       </main>
 
-      {/* 3. 모바일 전용 검색창 */}
-      {!isSelectingLocation && (
+      {/* 3. 모바일 전용 상단 검색창 (사이드바가 닫혔을 때만 표시) */}
+      {!isSelectingLocation && (!isSidebarOpen || window.innerWidth >= 1024) && (
         <div className={S.mobileSearchContainer}>
           <div className={S.mobileSearchBar}>
             <button onClick={() => { setSelectedPlace(null); setIsSidebarOpen(true); }} className={S.mobileMenuBtn}><Menu size={20} className="text-[#FFB800]" /></button>
@@ -529,7 +529,7 @@ const S = {
   sidebarWrapper: (selected: any, isOpen: boolean) => `
     fixed lg:static w-full lg:w-[380px] 
     flex flex-col border-r border-gray-100 
-    z-[150] shadow-2xl bg-white 
+    z-[250] shadow-2xl bg-white 
     transition-all duration-300 ease-in-out
     relative overflow-hidden
     ${selected ? 'h-fit max-h-[90dvh] lg:h-full rounded-t-[32px] lg:rounded-none bottom-0 left-0 right-0 top-auto' : 'h-full top-0 left-0 right-0'}
