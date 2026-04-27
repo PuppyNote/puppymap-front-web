@@ -1,6 +1,6 @@
 import { Map, MapMarker } from 'react-kakao-maps-sdk'
 import { Search, Heart, User, Navigation, Plus, Star, MapPin, Menu, X, LogOut, ShieldCheck, ArrowLeft, Trash2, ThumbsUp } from 'lucide-react'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { usePlaceStore } from '../store/usePlaceStore'
 import { useAuthStore } from '../store/useAuthStore'
 import type { Category } from '../types'
@@ -10,9 +10,9 @@ import { ReportPlaceModal } from '../components/common/ReportPlaceModal'
 import { AdminModal } from '../components/common/AdminModal'
 import { PlaceDetailCard } from '../components/common/PlaceDetailCard'
 import { PlaceListItemCard } from '../components/common/PlaceListItemCard'
-import { placeApi } from '../services/endpoints/PlaceApi'
 
 const MapPage = () => {
+  // 1. 상태 정의
   const [searchKeyword, setSearchKeyword] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<Category | 'ALL'>('ALL')
   const [isFavoriteMode, setIsFavoriteMode] = useState(false)
@@ -29,8 +29,61 @@ const MapPage = () => {
     }
     return { lat: 37.5665, lng: 126.978 }
   })
-  
-  const updateCurrentLocation = (isAuto = false) => {
+
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024)
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false)
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false)
+  const [isSelectingLocation, setIsSelectingLocation] = useState(false)
+  const [tempReportPosition, setTempReportPosition] = useState<{ lat: number; lng: number } | null>(null)
+  const [touchStart, setTouchStart] = useState<number | null>(null)
+  const [touchOffset, setTouchOffset] = useState(0)
+
+  // 2. 스토어 및 Refs
+  const { 
+    topPlaces, places, favorites, selectedPlace, isLoading, 
+    placesPage, topPlacesPage,
+    fetchPlaces, fetchMorePlaces, fetchTopPlaces, fetchMoreTopPlaces, 
+    fetchFavorites, setSelectedPlace, toggleLike, toggleFavorite, deletePlace 
+  } = usePlaceStore()
+
+  const { isLoggedIn, logout, user } = useAuthStore()
+
+  const lastSearchInfo = useRef<{
+    lat: number;
+    lng: number;
+    keyword: string;
+    category: Category | 'ALL';
+    level: number;
+  } | null>(null)
+
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const isDragging = useRef(false)
+  const startX = useRef(0)
+  const scrollLeft = useRef(0)
+  const observerTarget = useRef<HTMLDivElement>(null)
+  const [timer, setTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
+
+  // 3. 유틸리티 함수
+  const getDynamicRadius = (level: number) => {
+    if (level <= 3) return 0.5
+    if (level === 4) return 1.0
+    if (level === 5) return 2.0
+    if (level === 6) return 4.0
+    return 10.0
+  }
+
+  const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+    const R = 6371
+    const dLat = (lat2 - lat1) * (Math.PI / 180)
+    const dLng = (lng2 - lng1) * (Math.PI / 180)
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLng / 2) * Math.sin(dLng / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c
+  }
+
+  // 4. 로직 함수
+  const updateCurrentLocation = useCallback((isAuto = false) => {
     if (!navigator.geolocation) {
       if (!isAuto) alert('이 브라우저에서는 위치 정보를 지원하지 않습니다.')
       return
@@ -68,8 +121,88 @@ const MapPage = () => {
       timeout: 15000,
       maximumAge: 30000
     })
+  }, [map])
+
+  const performSearch = useCallback((mapObj: kakao.maps.Map, keyword: string, category: Category | 'ALL', force: boolean = false) => {
+    const center = mapObj.getCenter()
+    const lat = center.getLat()
+    const lng = center.getLng()
+    const level = mapObj.getLevel()
+    const radius = getDynamicRadius(level)
+    
+    if (!force && lastSearchInfo.current) {
+      const distance = getDistance(lat, lng, lastSearchInfo.current.lat, lastSearchInfo.current.lng)
+      if (distance < 0.2 && keyword === lastSearchInfo.current.keyword && category === lastSearchInfo.current.category && level === lastSearchInfo.current.level) return
+    }
+
+    fetchPlaces(keyword, lat, lng, radius, category)
+    if (!keyword || selectedPlace) {
+      fetchTopPlaces(lat, lng, 5.0, category) 
+    }
+    lastSearchInfo.current = { lat, lng, keyword, category, level }
+  }, [fetchPlaces, fetchTopPlaces, selectedPlace])
+
+  const handleMapCreate = useCallback((mapObj: kakao.maps.Map) => {
+    setMap(mapObj)
+  }, [])
+
+  const handleMapIdle = useCallback((mapObj: kakao.maps.Map) => {
+    if (timer) clearTimeout(timer)
+    const newTimer = setTimeout(() => { performSearch(mapObj, searchKeyword, selectedCategory) }, 1000)
+    setTimer(newTimer)
+  }, [performSearch, searchKeyword, selectedCategory, timer])
+
+  const handleMapClick = useCallback((_map: kakao.maps.Map, mouseEvent: kakao.maps.event.MouseEvent) => {
+    if (isSelectingLocation) {
+      setTempReportPosition({
+        lat: mouseEvent.latLng.getLat(),
+        lng: mouseEvent.latLng.getLng()
+      })
+      return
+    }
+    if (window.innerWidth < 1024) {
+      setIsSidebarOpen(false)
+      setSelectedPlace(null)
+    }
+  }, [isSelectingLocation, setSelectedPlace])
+
+  const handleSearch = (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    if (map) performSearch(map, searchKeyword, selectedCategory, true)
+    if (window.innerWidth < 1024) setIsSidebarOpen(true)
   }
 
+  const clearSearch = () => {
+    setSearchKeyword('')
+    if (map) performSearch(map, '', selectedCategory, true)
+  }
+
+  const handleCloseDetail = () => {
+    setIsSidebarOpen(false)
+    setTouchOffset(0)
+    setTimeout(() => { setSelectedPlace(null) }, 300)
+  }
+
+  const handleDeletePlace = async (placeId: number) => {
+    if (!window.confirm('정말 이 장소를 삭제하시겠습니까?')) return
+    try {
+      await deletePlace(placeId)
+      alert('장소가 삭제되었습니다.')
+      setSelectedPlace(null)
+    } catch (err) {}
+  }
+
+  const panToPlace = useCallback((lat: number, lng: number) => {
+    if (!map) return
+    const latlng = new kakao.maps.LatLng(lat, lng)
+    map.setCenter(latlng)
+    map.setLevel(2)
+    if (window.innerWidth < 1024) {
+      setTimeout(() => { map.panBy(0, 180) }, 100)
+    }
+  }, [map])
+
+  // 5. Effects
   useEffect(() => {
     updateCurrentLocation(true)
   }, [])
@@ -80,141 +213,7 @@ const MapPage = () => {
     }
   }, [map])
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024)
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
-  const [isReportModalOpen, setIsReportModalOpen] = useState(false)
-  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false)
-  const [isSelectingLocation, setIsSelectingLocation] = useState(false)
-  const [tempReportPosition, setTempReportPosition] = useState<{ lat: number; lng: number } | null>(null)
-
-  const [touchStart, setTouchStart] = useState<number | null>(null)
-  const [touchOffset, setTouchOffset] = useState(0)
-
-  const [lastSearchInfo, setLastSearchInfo] = useState<{
-    lat: number;
-    lng: number;
-    keyword: string;
-    category: Category | 'ALL';
-    level: number;
-  } | null>(null)
-
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const isDragging = useRef(false)
-  const startX = useRef(0)
-  const scrollLeft = useRef(0)
-
-  const { 
-    topPlaces, places, favorites, selectedPlace, isLoading, 
-    placesPage, topPlacesPage,
-    fetchPlaces, fetchMorePlaces, fetchTopPlaces, fetchMoreTopPlaces, 
-    fetchFavorites, setSelectedPlace, toggleLike, toggleFavorite, deletePlace 
-  } = usePlaceStore()
-
-  const observerTarget = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!observerTarget.current || selectedPlace) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !isLoading) {
-          if (isFavoriteMode) return
-          if (searchKeyword || map) {
-            const center = map?.getCenter()
-            fetchMorePlaces(searchKeyword, center?.getLat(), center?.getLng(), getDynamicRadius(map?.getLevel() || 3), selectedCategory)
-          }
-          if (map && !searchKeyword) {
-            const center = map.getCenter()
-            fetchMoreTopPlaces(center.getLat(), center.getLng(), 5.0, selectedCategory)
-          }
-        }
-      },
-      { threshold: 1.0 }
-    )
-
-    observer.observe(observerTarget.current)
-    return () => observer.disconnect()
-  }, [isLoading, isFavoriteMode, searchKeyword, selectedCategory, map, selectedPlace])
-
-  const { isLoggedIn, logout, user } = useAuthStore()
-  const [timer, setTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
-
-  const handleDeletePlace = async (placeId: number) => {
-    if (!window.confirm('정말 이 장소를 삭제하시겠습니까?')) return
-    try {
-      await deletePlace(placeId)
-      alert('장소가 삭제되었습니다.')
-      if (window.innerWidth < 1024) handleCloseDetail()
-      else setSelectedPlace(null)
-    } catch (err) {}
-  }
-
-  const panToPlace = (lat: number, lng: number) => {
-    if (!map) return
-    const latlng = new kakao.maps.LatLng(lat, lng)
-    map.setCenter(latlng)
-    map.setLevel(2)
-    if (window.innerWidth < 1024) {
-      setTimeout(() => { map.panBy(0, 180) }, 100)
-    }
-  }
-
-  const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => {
-    const R = 6371
-    const dLat = (lat2 - lat1) * (Math.PI / 180)
-    const dLng = (lng2 - lng1) * (Math.PI / 180)
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLng / 2) * Math.sin(dLng / 2)
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-    return R * c
-  }
-
-  const getDynamicRadius = (level: number) => {
-    if (level <= 3) return 0.5
-    if (level === 4) return 1.0
-    if (level === 5) return 2.0
-    if (level === 6) return 4.0
-    return 10.0
-  }
-
-  const performSearch = (mapObj: kakao.maps.Map, keyword: string, category: Category | 'ALL', force: boolean = false) => {
-    const center = mapObj.getCenter()
-    const lat = center.getLat()
-    const lng = center.getLng()
-    const level = mapObj.getLevel()
-    const radius = getDynamicRadius(level)
-    
-    if (!force && lastSearchInfo) {
-      const distance = getDistance(lat, lng, lastSearchInfo.lat, lastSearchInfo.lng)
-      if (distance < 0.2 && keyword === lastSearchInfo.keyword && category === lastSearchInfo.category && level === lastSearchInfo.level) return
-    }
-
-    fetchPlaces(keyword, lat, lng, radius, category)
-    if (!keyword || selectedPlace) {
-      fetchTopPlaces(lat, lng, 5.0, category) 
-    }
-    setLastSearchInfo({ lat, lng, keyword, category, level })
-  }
-
-  useEffect(() => { if (isLoggedIn) fetchFavorites() }, [isLoggedIn])
-
-  const lastWidth = useRef(window.innerWidth)
-
-  useEffect(() => {
-    const handleResize = () => {
-      const currentWidth = window.innerWidth
-      if (currentWidth === lastWidth.current) return
-      if (currentWidth >= 1024) setIsSidebarOpen(true)
-      else if (!selectedPlace) setIsSidebarOpen(false)
-      lastWidth.current = currentWidth
-    }
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [selectedPlace])
-
-  const handleMapCreate = (mapObj: kakao.maps.Map) => {
-    setMap(mapObj)
-    performSearch(mapObj, searchKeyword, selectedCategory, true)
-  }
+  useEffect(() => { if (isLoggedIn) fetchFavorites() }, [isLoggedIn, fetchFavorites])
 
   useEffect(() => {
     if (map) {
@@ -228,69 +227,49 @@ const MapPage = () => {
         performSearch(map, searchKeyword, selectedCategory, true)
       }
     }
-  }, [selectedCategory, isFavoriteMode, isLoggedIn])
+  }, [map, selectedCategory, isFavoriteMode, isLoggedIn, performSearch])
 
-  const handleMapIdle = (mapObj: kakao.maps.Map) => {
-    if (timer) clearTimeout(timer)
-    const newTimer = setTimeout(() => { performSearch(mapObj, searchKeyword, selectedCategory) }, 1000)
-    setTimer(newTimer)
-  }
-
-  const handleMapClick = (_map: kakao.maps.Map, mouseEvent: kakao.maps.event.MouseEvent) => {
-    if (isSelectingLocation) {
-      setTempReportPosition({
-        lat: mouseEvent.latLng.getLat(),
-        lng: mouseEvent.latLng.getLng()
-      })
-      return
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) setIsSidebarOpen(true)
+      else if (!selectedPlace) setIsSidebarOpen(false)
     }
-    if (window.innerWidth < 1024) {
-      setIsSidebarOpen(false)
-      setSelectedPlace(null)
-    }
-  }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [selectedPlace])
 
-  const handleSearch = (e?: React.FormEvent) => {
-    if (e) e.preventDefault()
-    if (map) performSearch(map, searchKeyword, selectedCategory, true)
-    if (window.innerWidth < 1024) setIsSidebarOpen(true)
-  }
+  useEffect(() => {
+    if (!observerTarget.current || selectedPlace) return
 
-  const clearSearch = () => {
-    setSearchKeyword('')
-    if (map) performSearch(map, '', selectedCategory, true)
-  }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isLoading) {
+          if (isFavoriteMode) return
+          if (map) {
+            const center = map.getCenter()
+            fetchMorePlaces(searchKeyword, center.getLat(), center.getLng(), getDynamicRadius(map.getLevel()), selectedCategory)
+            if (!searchKeyword) {
+              fetchMoreTopPlaces(center.getLat(), center.getLng(), 5.0, selectedCategory)
+            }
+          }
+        }
+      },
+      { threshold: 1.0 }
+    )
 
-  const handleMoveToCurrentLocation = () => updateCurrentLocation()
+    observer.observe(observerTarget.current)
+    return () => observer.disconnect()
+  }, [isLoading, isFavoriteMode, searchKeyword, selectedCategory, map, selectedPlace, fetchMorePlaces, fetchMoreTopPlaces])
 
-  const handleAdminButtonClick = () => {
-    if (user?.role !== 'ADMIN') return alert('관리자 권한이 없습니다.')
-    setIsAdminModalOpen(true)
-  }
+  // 6. 렌더링 도우미
+  const filteredPlaces = isFavoriteMode 
+    ? favorites 
+    : (searchKeyword ? places : topPlaces)
 
-  const handleCloseDetail = () => {
-    setIsSidebarOpen(false)
-    setTouchOffset(0)
-    setTimeout(() => { setSelectedPlace(null) }, 300)
-  }
-
-  const handleDragStart = (y: number) => {
-    if (window.innerWidth >= 1024 || !selectedPlace) return
-    setTouchStart(y)
-  }
-
-  const handleDragMove = (y: number) => {
-    if (window.innerWidth >= 1024 || touchStart === null || !selectedPlace) return
-    const offset = y - touchStart
-    if (offset > 0) setTouchOffset(offset)
-  }
-
-  const handleDragEnd = () => {
-    if (window.innerWidth >= 1024 || touchStart === null || !selectedPlace) return
-    if (touchOffset > 120) handleCloseDetail()
-    else setTouchOffset(0)
-    setTouchStart(null)
-  }
+  const mapMarkers = [...places]
+  topPlaces.forEach(tp => {
+    if (!mapMarkers.some(m => m.id === tp.id)) mapMarkers.push(tp)
+  })
 
   const handleWheel = (e: React.WheelEvent) => { if (scrollRef.current) scrollRef.current.scrollLeft += e.deltaY }
   const onDragStart = (e: React.MouseEvent) => {
@@ -308,57 +287,39 @@ const MapPage = () => {
     scrollRef.current.scrollLeft = scrollLeft.current - walk
   }
 
-  const filteredPlaces = isFavoriteMode 
-    ? favorites 
-    : (searchKeyword ? places : topPlaces)
+  const handleDragStart = (y: number) => {
+    if (window.innerWidth >= 1024 || !selectedPlace) return
+    setTouchStart(y)
+  }
+  const handleDragMove = (y: number) => {
+    if (window.innerWidth >= 1024 || touchStart === null || !selectedPlace) return
+    const offset = y - touchStart
+    if (offset > 0) setTouchOffset(offset)
+  }
+  const handleDragEndAction = () => {
+    if (window.innerWidth >= 1024 || touchStart === null || !selectedPlace) return
+    if (touchOffset > 120) handleCloseDetail()
+    else setTouchOffset(0)
+    setTouchStart(null)
+  }
 
   return (
     <div className={S.container}>
-      {!isSelectingLocation && (
-        <div className={S.mobileSearchContainer}>
-          <div className={S.mobileSearchBar}>
-            <button onClick={() => { setSelectedPlace(null); setIsSidebarOpen(true); }} className={S.mobileMenuBtn}><Menu size={20} className="text-[#FFB800]" /></button>
-            <form onSubmit={handleSearch} className="flex-1 relative">
-              <input type="text" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} placeholder="장소 검색" className={S.mobileInput} />
-              {searchKeyword && <button type="button" onClick={clearSearch} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-300"><X size={16} /></button>}
-            </form>
-          </div>
-          {!selectedPlace && (
-            <div ref={scrollRef} onWheel={handleWheel} onMouseDown={onDragStart} onMouseMove={onDragMove} onMouseUp={onDragEnd} onMouseLeave={onDragEnd} className={S.mobileFilterRow}>
-              {['ALL', ...Object.keys(CATEGORY_LABELS)].map((cat) => (
-                <button key={cat} onClick={() => { setSelectedCategory(cat as any); setIsFavoriteMode(false); }} className={`${S.filterBadge} ${!isFavoriteMode && selectedCategory === cat ? S.filterBadgeActive : S.filterBadgeInactive} text-[10px] px-3 py-1.5`}>
-                  {cat === 'ALL' ? '전체' : CATEGORY_LABELS[cat as Category]}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {isSelectingLocation && (
-        <div className={S.selectionOverlay}>
-          <div className={S.selectionTooltip}>제보할 장소를 지도에서 클릭해주세요!</div>
-          <div className="flex space-x-2">
-            <button onClick={() => setIsSelectingLocation(false)} className={S.selectionCancelBtn}>취소</button>
-            {tempReportPosition && <button onClick={() => { setIsReportModalOpen(true); setIsSelectingLocation(false); }} className={S.selectionConfirmBtn}>이 위치로 제보하기</button>}
-          </div>
-        </div>
-      )}
-
+      {/* 1. 사이드바 (데스크톱 기준 왼쪽) */}
       <aside 
         onTouchStart={(e) => handleDragStart(e.touches[0].clientY)}
         onTouchMove={(e) => handleDragMove(e.touches[0].clientY)}
-        onTouchEnd={handleDragEnd}
+        onTouchEnd={handleDragEndAction}
         onMouseDown={(e) => handleDragStart(e.clientY)}
         onMouseMove={(e) => touchStart !== null && handleDragMove(e.clientY)}
-        onMouseUp={handleDragEnd}
-        onMouseLeave={handleDragEnd}
+        onMouseUp={handleDragEndAction}
+        onMouseLeave={handleDragEndAction}
         style={window.innerWidth < 1024 && selectedPlace ? { transform: `translateY(${touchOffset}px)`, transition: touchStart === null ? 'transform 0.3s ease-out' : 'none' } : {}}
         className={S.sidebarWrapper(selectedPlace, isSidebarOpen)}
       >
         {selectedPlace && <div className={S.dragHandleWrapper}><div className={S.dragHandle} /></div>}
         
-        {/* 상단 헤더: 웹에서는 항상 노출, 모바일 상세에서는 유지 여부 결정 */}
+        {/* 사이드바 헤더 */}
         {(window.innerWidth >= 1024 || !selectedPlace) && (
           <div className={S.sidebarHeader}>
             <div className={S.logoWrapper}>
@@ -396,9 +357,9 @@ const MapPage = () => {
           </div>
         )}
 
-        <div className={`${S.contentArea} flex-1 ${selectedPlace ? 'bg-white' : 'bg-gray-50/50'}`}>
+        {/* 메인 리스트 / 상세 Swap */}
+        <div className={`${S.contentArea} flex-1 relative ${selectedPlace ? 'bg-white' : 'bg-gray-50/50'}`}>
           {selectedPlace ? (
-            /* 장소 상세: 목록과 부드럽게 교체 */
             <div className="animate-in fade-in slide-in-from-right-4 duration-300 min-h-full px-6 bg-white flex flex-col pt-2">
               <div className={S.detailHeader}>
                 <button onClick={() => setSelectedPlace(null)} className={S.backButton}>
@@ -424,7 +385,6 @@ const MapPage = () => {
               </div>
             </div>
           ) : (
-            /* 장소 목록 */
             <div className="pb-10 px-6 pt-2 animate-in fade-in duration-300">
               <div className={S.sectionTitleRow}>
                 <div className="flex flex-col">
@@ -458,7 +418,7 @@ const MapPage = () => {
           )}
         </div>
 
-        {/* 푸터: 웹에서는 항상 노출, 모바일 상세에서는 유지 */}
+        {/* 사이드바 푸터 */}
         {(window.innerWidth >= 1024 || !selectedPlace) && (
           <div className={S.sidebarFooter}>
             {isLoggedIn ? (
@@ -484,12 +444,13 @@ const MapPage = () => {
         )}
       </aside>
 
+      {/* 2. 지도 영역 */}
       <main className={S.mapMain}>
         <Map 
           center={currentPosition} 
           style={{ width: '100%', height: '100%' }} 
           level={3} 
-          onCreate={setMap} 
+          onCreate={handleMapCreate} 
           onIdle={handleMapIdle} 
           onClick={handleMapClick} 
           draggable={!isSelectingLocation}
@@ -499,13 +460,13 @@ const MapPage = () => {
         >
           <MapMarker position={currentPosition} image={{ src: "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png", size: { width: 24, height: 35 } }} title="내 위치" />
           {isSelectingLocation && tempReportPosition && <MapMarker position={tempReportPosition} image={{ src: "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/marker_red.png", size: { width: 31, height: 35 } }} />}
-          {places.map((place) => (
+          {mapMarkers.map((place) => (
             <MapMarker key={place.id} position={{ lat: place.latitude, lng: place.longitude }} image={{ src: "/puppynote-icon.png", size: { width: 24, height: 24 }, options: { offset: { x: 12, y: 24 } } }} onClick={() => { if(!isSelectingLocation) { setSelectedPlace(place); setIsSidebarOpen(true); panToPlace(place.latitude, place.longitude); } }} />
           ))}
         </Map>
         
         <div className={S.floatingControls}>
-          <button onClick={handleMoveToCurrentLocation} className={S.navButton}><Navigation size={24} className="fill-[#FFB800] text-[#FFB800]" /></button>
+          <button onClick={() => updateCurrentLocation()} className={S.navButton}><Navigation size={24} className="fill-[#FFB800] text-[#FFB800]" /></button>
           <button onClick={() => {
             if (!isLoggedIn) return setIsLoginModalOpen(true)
             setIsSelectingLocation(true)
@@ -516,6 +477,39 @@ const MapPage = () => {
           </button>
         </div>
       </main>
+
+      {/* 3. 모바일 전용 검색창 */}
+      {!isSelectingLocation && (
+        <div className={S.mobileSearchContainer}>
+          <div className={S.mobileSearchBar}>
+            <button onClick={() => { setSelectedPlace(null); setIsSidebarOpen(true); }} className={S.mobileMenuBtn}><Menu size={20} className="text-[#FFB800]" /></button>
+            <form onSubmit={handleSearch} className="flex-1 relative">
+              <input type="text" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} placeholder="장소 검색" className={S.mobileInput} />
+              {searchKeyword && <button type="button" onClick={clearSearch} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-300"><X size={16} /></button>}
+            </form>
+          </div>
+          {!selectedPlace && (
+            <div className={S.mobileFilterRow}>
+              {['ALL', ...Object.keys(CATEGORY_LABELS)].map((cat) => (
+                <button key={cat} onClick={() => { setSelectedCategory(cat as any); setIsFavoriteMode(false); }} className={`${S.filterBadge} ${!isFavoriteMode && selectedCategory === cat ? S.filterBadgeActive : S.filterBadgeInactive} text-[10px] px-3 py-1.5`}>
+                  {cat === 'ALL' ? '전체' : CATEGORY_LABELS[cat as Category]}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 4. 장소 선택 오버레이 */}
+      {isSelectingLocation && (
+        <div className={S.selectionOverlay}>
+          <div className={S.selectionTooltip}>제보할 장소를 지도에서 클릭해주세요!</div>
+          <div className="flex space-x-2">
+            <button onClick={() => setIsSelectingLocation(false)} className={S.selectionCancelBtn}>취소</button>
+            {tempReportPosition && <button onClick={() => { setIsReportModalOpen(true); setIsSelectingLocation(false); }} className={S.selectionConfirmBtn}>이 위치로 제보하기</button>}
+          </div>
+        </div>
+      )}
 
       <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
       <ReportPlaceModal isOpen={isReportModalOpen} onClose={() => setIsReportModalOpen(false)} position={tempReportPosition || currentPosition} onSuccess={() => map && handleMapIdle(map)} />
@@ -528,7 +522,7 @@ const S = {
   container: `
     flex h-[100dvh] w-full 
     overflow-hidden 
-    bg-white font-sans text-gray-900 
+    bg-gray-50 font-sans text-gray-900 
     relative
   `,
 
@@ -677,12 +671,12 @@ const S = {
   `,
 
   mapMain: `
-    flex-1 relative bg-gray-100 z-10
+    fixed inset-0 lg:static flex-1 bg-gray-100 z-0 h-full w-full
   `,
 
   floatingControls: `
     absolute bottom-10 right-6 lg:right-10 
-    z-20 flex flex-col space-y-4 items-end
+    z-[100] flex flex-col space-y-4 items-end
   `,
 
   navButton: `
@@ -696,11 +690,11 @@ const S = {
     px-6 lg:px-8 py-4 rounded-3xl shadow-xl 
     hover:shadow-[#FFB800]/20 transition-all 
     transform hover:scale-105 font-bold 
-    flex items-center space-x-2
+    flex flex-row items-center space-x-2
   `,
 
   reportBtnText: `
-    text-base lg:text-lg
+    text-base lg:text-lg whitespace-nowrap
   `,
 
   filterBadge: `
@@ -720,7 +714,7 @@ const S = {
 
   mobileSearchContainer: `
     absolute top-4 left-0 right-0 
-    z-40 px-4 flex flex-col space-y-2 
+    z-[160] px-4 flex flex-col space-y-2 
     lg:hidden
   `,
 
@@ -747,7 +741,7 @@ const S = {
 
   selectionOverlay: `
     absolute top-6 left-1/2 -translate-x-1/2 
-    z-[100] flex flex-col items-center space-y-3 
+    z-[200] flex flex-col items-center space-y-3 
     w-[90%] max-w-md
   `,
 
