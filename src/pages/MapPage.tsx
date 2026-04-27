@@ -160,10 +160,19 @@ const MapPage = () => {
     }
   }, [map, selectedCategory, isFavoriteMode, isLoggedIn, performSearch])
 
+  const lastWidth = useRef(window.innerWidth)
+
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth >= 1024) setIsSidebarOpen(true)
-      else if (!selectedPlace) setIsSidebarOpen(false)
+      const currentWidth = window.innerWidth
+      if (currentWidth === lastWidth.current) return // 너비가 변하지 않았다면(키보드 등 높이만 변한 경우) 무시
+      
+      if (currentWidth >= 1024) {
+        setIsSidebarOpen(true)
+      } else if (!selectedPlace) {
+        setIsSidebarOpen(false)
+      }
+      lastWidth.current = currentWidth
     }
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
@@ -241,10 +250,14 @@ const MapPage = () => {
               <div className={S.logoContainer}><img src="/puppynote-icon.png" alt="Logo" className={S.logoImage} /><span className={S.logoText}>PUPPYMAP</span></div>
               <button onClick={() => setIsSidebarOpen(false)} className={S.sidebarCloseBtn}><X size={24} className="text-gray-400" /></button>
             </div>
-            <div className="relative group mb-4">
-              <form onSubmit={handleSearch}><input type="text" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} placeholder="산책하기 좋은 곳을 찾아보세요" className={S.searchInput} /></form>
-              <button onClick={() => handleSearch()} className={S.searchIconBtn}><Search size={20} /></button>
-              {searchKeyword && <button onClick={clearSearch} className={S.searchClearBtn}><X size={18} /></button>}
+            <div className="flex items-center space-x-2 mb-4">
+              <form onSubmit={handleSearch} className="flex-1 flex items-center bg-gray-50 rounded-2xl pr-1 focus-within:ring-2 focus-within:ring-[#FFB800] transition-all">
+                <input type="text" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} placeholder="산책하기 좋은 곳을 찾아보세요" className={S.searchInput} />
+                <div className="flex items-center shrink-0">
+                  {searchKeyword && <button type="button" onClick={clearSearch} className="p-2 text-gray-300 hover:text-gray-500"><X size={18} /></button>}
+                  <button type="submit" className="p-2 text-[#FFB800] hover:scale-110 transition-transform"><Search size={22} /></button>
+                </div>
+              </form>
             </div>
             <div ref={scrollRef} onWheel={(e) => { if(scrollRef.current) scrollRef.current.scrollLeft += e.deltaY }} onMouseDown={onDragStartScroll} onMouseMove={onDragMoveScroll} onMouseUp={() => { isDragging.current = false }} onMouseLeave={() => { isDragging.current = false }} className={S.filterScrollRow}>
               <button onClick={() => !isLoggedIn ? setIsLoginModalOpen(true) : setIsFavoriteMode(!isFavoriteMode)} className={`${S.filterBadge} ${isFavoriteMode ? 'bg-red-50 border-red-200 text-red-500 shadow-sm' : S.filterBadgeInactive} flex items-center space-x-1`}><Heart size={14} fill={isFavoriteMode ? "white" : "transparent"} /><span className="whitespace-nowrap">즐겨찾기</span></button>
@@ -306,12 +319,18 @@ const MapPage = () => {
         </div>
       </main>
 
-      {/* 3. 모바일 전용 상단 검색창 */}
+      {/* 3. 모바일 전용 상단 검색창 (사이드바 닫혔을 때만) */}
       {!isSelectingLocation && (!isSidebarOpen || window.innerWidth >= 1024) && (
         <div className={S.mobileSearchContainer}>
           <div className={S.mobileSearchBar}>
             <button onClick={() => { setSelectedPlace(null); setIsSidebarOpen(true); }} className={S.mobileMenuBtn}><Menu size={20} className="text-[#FFB800]" /></button>
-            <form onSubmit={handleSearch} className="flex-1 relative"><input type="text" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} placeholder="장소 검색" className={S.mobileInput} />{searchKeyword && <button type="button" onClick={clearSearch} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-300"><X size={16} /></button>}</form>
+            <form onSubmit={handleSearch} className="flex-1 flex items-center bg-white rounded-2xl pr-1 shadow-xl border border-gray-100 overflow-hidden">
+              <input type="text" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} placeholder="장소 검색" className={S.mobileInput} />
+              <div className="flex items-center shrink-0">
+                {searchKeyword && <button type="button" onClick={clearSearch} className="p-2 text-gray-300"><X size={18} /></button>}
+                <button type="submit" className="p-2 text-[#FFB800]"><Search size={22} /></button>
+              </div>
+            </form>
           </div>
           {!selectedPlace && (
             <div className={S.mobileFilterRow}>
@@ -360,9 +379,9 @@ const S = {
   logoImage: "h-10 w-10 object-contain rounded-xl shadow-sm",
   logoText: "font-black text-2xl tracking-tighter text-[#FFB800]",
   sidebarCloseBtn: "lg:hidden p-2 hover:bg-gray-100 rounded-full ml-1",
-  searchInput: "w-full pl-12 pr-12 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:ring-2 focus:ring-[#FFB800] focus:border-transparent transition-all outline-none shadow-sm",
-  searchIconBtn: "absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#FFB800] transition-colors cursor-pointer z-10",
-  searchClearBtn: "absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-600 transition-colors cursor-pointer z-10",
+  searchInput: "flex-1 pl-5 py-3.5 bg-transparent outline-none text-sm min-w-0",
+  searchIconBtn: "p-1.5 text-[#FFB800] transition-colors cursor-pointer",
+  searchClearBtn: "p-1.5 text-gray-300 hover:text-gray-600 transition-colors cursor-pointer",
   filterScrollRow: "flex space-x-2 overflow-x-auto no-scrollbar pb-1 cursor-grab active:cursor-grabbing select-none",
   contentArea: "flex-1 overflow-y-auto min-h-0 no-scrollbar",
   detailHeader: "flex justify-between items-center mb-6",
@@ -386,9 +405,9 @@ const S = {
   filterBadgeActive: "bg-[#FFB800] border-[#FFB800] text-white shadow-md",
   filterBadgeInactive: "bg-white border-gray-50 text-gray-400 hover:border-gray-200",
   mobileSearchContainer: "absolute top-4 left-0 right-0 z-[160] px-4 flex flex-col space-y-2 lg:hidden",
-  mobileSearchBar: "w-full bg-white rounded-2xl shadow-2xl p-2 flex items-center space-x-2 border border-gray-100",
-  mobileMenuBtn: "p-2 hover:bg-gray-50 rounded-xl transition-colors",
-  mobileInput: "w-full py-2 px-1 text-sm outline-none bg-transparent",
+  mobileSearchBar: "w-full flex items-center space-x-2",
+  mobileMenuBtn: "p-3 bg-white rounded-2xl shadow-xl border border-gray-100 text-[#FFB800]",
+  mobileInput: "flex-1 py-3.5 px-4 text-sm outline-none bg-transparent min-w-0",
   mobileFilterRow: "flex space-x-2 overflow-x-auto no-scrollbar py-2 select-none",
   selectionOverlay: "absolute top-6 left-1/2 -translate-x-1/2 z-[200] flex flex-col items-center space-y-3 w-[90%] max-w-md",
   selectionTooltip: "bg-black/80 text-white px-6 py-3 rounded-full shadow-2xl backdrop-blur-md animate-bounce text-sm text-center font-bold",
