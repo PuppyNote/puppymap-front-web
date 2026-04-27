@@ -53,7 +53,7 @@ const MapPage = () => {
   const observerTarget = useRef<HTMLDivElement>(null)
   const [timer, setTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
 
-  // 4. Logic & Utility Functions
+  // 4. Utility Functions
   const getDynamicRadius = (level: number) => {
     if (level <= 3) return 0.5
     if (level === 4) return 1.0
@@ -71,6 +71,7 @@ const MapPage = () => {
     return R * c
   }
 
+  // 5. Logic Functions
   const updateCurrentLocation = useCallback((isAuto = false) => {
     if (!navigator.geolocation) {
       if (!isAuto) alert('이 브라우저에서는 위치 정보를 지원하지 않습니다.')
@@ -254,16 +255,18 @@ const MapPage = () => {
         )}
 
         {/* 중간 콘텐츠 영역: 리스트와 상세 정보가 여기서 교체(Swap)됨 */}
-        <div className={`${S.contentArea} flex-1 relative ${selectedPlace ? 'bg-white' : 'bg-gray-50/50'}`}>
+        <div className={`${S.contentArea} flex-1 relative ${selectedPlace ? 'bg-white lg:h-full' : 'bg-gray-50/50'}`}>
           {selectedPlace ? (
-            <div className="animate-in fade-in slide-in-from-right-4 duration-300 px-6 bg-white flex flex-col pt-2 h-full">
+            <div className="animate-in fade-in slide-in-from-right-4 duration-300 lg:h-full px-6 bg-white flex flex-col pt-2">
               <div className={S.detailHeader}>
                 <button onClick={() => setSelectedPlace(null)} className={S.backButton}><ArrowLeft size={16} className="mr-1" /> {isFavoriteMode ? '즐겨찾기' : '목록으로'}</button>
                 <div className="flex-1" />
                 {user?.role === 'ADMIN' && <button onClick={() => handleDeletePlace(selectedPlace.id)} className={S.adminDeleteBtn}><Trash2 size={22} /></button>}
               </div>
-              <div className="flex-1 overflow-y-auto no-scrollbar pb-10">
+              <div className="flex-1 overflow-y-auto no-scrollbar">
                 <PlaceDetailCard place={selectedPlace} isLoggedIn={isLoggedIn} isFavorite={favorites.some(f => f.id === selectedPlace.id)} onLoginRequired={() => setIsLoginModalOpen(true)} onToggleLike={async (id) => { try { await toggleLike(id) } catch (err) {} }} onToggleFavorite={(id) => toggleFavorite(id)} />
+                {/* 하단 잘림 방지용 명시적 Spacer (Web/Mobile 동시 수용) */}
+                <div className="h-20 lg:h-32 w-full shrink-0" />
               </div>
             </div>
           ) : (
@@ -345,8 +348,8 @@ const S = {
     flex flex-col border-r border-gray-100 
     z-[250] shadow-2xl bg-white 
     transition-all duration-300 ease-in-out
-    overflow-hidden h-full
-    ${selected ? 'max-h-[90dvh] lg:max-h-full rounded-t-[32px] lg:rounded-none bottom-0 left-0 right-0 top-auto' : 'top-0 left-0 right-0'}
+    overflow-hidden
+    ${selected ? 'h-fit max-h-[90dvh] lg:h-full lg:max-h-full rounded-t-[32px] lg:rounded-none bottom-0 left-0 right-0 top-auto' : 'h-full top-0 left-0 right-0'}
     ${isOpen ? 'translate-y-0 lg:translate-x-0' : 'translate-y-full lg:-translate-x-full'}
   `,
   dragHandleWrapper: "w-full flex justify-center py-3 lg:hidden shrink-0",
