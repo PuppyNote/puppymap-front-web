@@ -358,71 +358,74 @@ const MapPage = () => {
       >
         {selectedPlace && <div className={S.dragHandleWrapper}><div className={S.dragHandle} /></div>}
         
-        <div className={S.sidebarHeader}>
-          <div className={S.logoWrapper}>
-            <div className={S.logoContainer}>
-              <img src="/puppynote-icon.png" alt="Logo" className={S.logoImage} />
-              <span className={S.logoText}>PUPPYMAP</span>
+        {/* 상단 헤더: 웹에서는 항상 노출, 모바일 상세에서는 유지 여부 결정 */}
+        {(window.innerWidth >= 1024 || !selectedPlace) && (
+          <div className={S.sidebarHeader}>
+            <div className={S.logoWrapper}>
+              <div className={S.logoContainer}>
+                <img src="/puppynote-icon.png" alt="Logo" className={S.logoImage} />
+                <span className={S.logoText}>PUPPYMAP</span>
+              </div>
+              <button onClick={() => setIsSidebarOpen(false)} className={S.sidebarCloseBtn}><X size={24} className="text-gray-400" /></button>
             </div>
-            <button onClick={() => setIsSidebarOpen(false)} className={S.sidebarCloseBtn}><X size={24} className="text-gray-400" /></button>
-          </div>
-          
-          <div className="relative group mb-4">
-            <form onSubmit={handleSearch}>
-              <input type="text" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} placeholder="산책하기 좋은 곳을 찾아보세요" className={S.searchInput} />
-            </form>
-            <button onClick={() => handleSearch()} className={S.searchIconBtn}>
-              <Search size={20} />
-            </button>
-            {searchKeyword && (
-              <button onClick={clearSearch} className={S.searchClearBtn}>
-                <X size={18} />
+            
+            <div className="relative group mb-4">
+              <form onSubmit={handleSearch}>
+                <input type="text" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} placeholder="산책하기 좋은 곳을 찾아보세요" className={S.searchInput} />
+              </form>
+              <button onClick={() => handleSearch()} className={S.searchIconBtn}>
+                <Search size={20} />
               </button>
-            )}
-          </div>
+              {searchKeyword && (
+                <button onClick={clearSearch} className={S.searchClearBtn}>
+                  <X size={18} />
+                </button>
+              )}
+            </div>
 
-          <div ref={scrollRef} onWheel={handleWheel} onMouseDown={onDragStart} onMouseMove={onDragMove} onMouseUp={onDragEnd} onMouseLeave={onDragEnd} className={S.filterScrollRow}>
-            <button onClick={() => { if (!isLoggedIn) setIsLoginModalOpen(true); else setIsFavoriteMode(!isFavoriteMode); }} className={`${S.filterBadge} ${isFavoriteMode ? 'bg-red-50 border-red-200 text-red-500 shadow-sm' : S.filterBadgeInactive} flex items-center space-x-1`}>
-              <Heart size={14} fill={isFavoriteMode ? "white" : "transparent"} />
-              <span>즐겨찾기</span>
-            </button>
-            <button onClick={() => { setSelectedCategory('ALL'); setIsFavoriteMode(false); }} className={`${S.filterBadge} ${!isFavoriteMode && selectedCategory === 'ALL' ? S.filterBadgeActive : S.filterBadgeInactive}`}>전체</button>
-            {(Object.keys(CATEGORY_LABELS) as Category[]).map((cat) => (
-              <button key={cat} onClick={() => { setSelectedCategory(cat); setIsFavoriteMode(false); }} className={`${S.filterBadge} ${!isFavoriteMode && selectedCategory === cat ? S.filterBadgeActive : S.filterBadgeInactive}`}>{CATEGORY_LABELS[cat]}</button>
-            ))}
+            <div ref={scrollRef} onWheel={handleWheel} onMouseDown={onDragStart} onMouseMove={onDragMove} onMouseUp={onDragEnd} onMouseLeave={onDragEnd} className={S.filterScrollRow}>
+              <button onClick={() => { if (!isLoggedIn) setIsLoginModalOpen(true); else setIsFavoriteMode(!isFavoriteMode); }} className={`${S.filterBadge} ${isFavoriteMode ? 'bg-red-50 border-red-200 text-red-500 shadow-sm' : S.filterBadgeInactive} flex items-center space-x-1`}>
+                <Heart size={14} fill={isFavoriteMode ? "white" : "transparent"} />
+                <span>즐겨찾기</span>
+              </button>
+              <button onClick={() => { setSelectedCategory('ALL'); setIsFavoriteMode(false); }} className={`${S.filterBadge} ${!isFavoriteMode && selectedCategory === 'ALL' ? S.filterBadgeActive : S.filterBadgeInactive}`}>전체</button>
+              {(Object.keys(CATEGORY_LABELS) as Category[]).map((cat) => (
+                <button key={cat} onClick={() => { setSelectedCategory(cat); setIsFavoriteMode(false); }} className={`${S.filterBadge} ${!isFavoriteMode && selectedCategory === cat ? S.filterBadgeActive : S.filterBadgeInactive}`}>{CATEGORY_LABELS[cat]}</button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
-        <div className={`${S.contentArea} flex-1 relative ${selectedPlace ? 'bg-white' : ''}`}>
+        <div className={`${S.contentArea} flex-1 ${selectedPlace ? 'bg-white' : 'bg-gray-50/50'}`}>
           {selectedPlace ? (
-            <div className="absolute inset-0 z-[50] bg-white flex flex-col animate-in slide-in-from-bottom lg:slide-in-from-left duration-300 overflow-y-auto no-scrollbar">
-              <div className="p-6 pt-0 flex-1">
-                <div className={S.detailHeader}>
-                  <button onClick={() => setSelectedPlace(null)} className={S.backButton}>
-                    <ArrowLeft size={16} className="mr-1" /> 
-                    {isFavoriteMode ? '즐겨찾기' : '목록으로'}
+            /* 장소 상세: 목록과 부드럽게 교체 */
+            <div className="animate-in fade-in slide-in-from-right-4 duration-300 min-h-full px-6 bg-white flex flex-col pt-2">
+              <div className={S.detailHeader}>
+                <button onClick={() => setSelectedPlace(null)} className={S.backButton}>
+                  <ArrowLeft size={16} className="mr-1" /> 
+                  {isFavoriteMode ? '즐겨찾기' : '목록으로'}
+                </button>
+                <div className="flex-1" />
+                {user?.role === 'ADMIN' && (
+                  <button onClick={() => handleDeletePlace(selectedPlace.id)} className={S.adminDeleteBtn}>
+                    <Trash2 size={22} />
                   </button>
-                  <div className="flex-1" />
-                  {user?.role === 'ADMIN' && (
-                    <button onClick={() => handleDeletePlace(selectedPlace.id)} className={S.adminDeleteBtn}>
-                      <Trash2 size={22} />
-                    </button>
-                  )}
-                </div>
-                <div className="pb-10">
-                  <PlaceDetailCard 
-                    place={selectedPlace} 
-                    isLoggedIn={isLoggedIn} 
-                    isFavorite={favorites.some(f => f.id === selectedPlace.id)} 
-                    onLoginRequired={() => setIsLoginModalOpen(true)} 
-                    onToggleLike={async (id) => { try { await toggleLike(id) } catch (err) {} }} 
-                    onToggleFavorite={(id) => toggleFavorite(id)} 
-                  />
-                </div>
+                )}
+              </div>
+              <div className="pb-10">
+                <PlaceDetailCard 
+                  place={selectedPlace} 
+                  isLoggedIn={isLoggedIn} 
+                  isFavorite={favorites.some(f => f.id === selectedPlace.id)} 
+                  onLoginRequired={() => setIsLoginModalOpen(true)} 
+                  onToggleLike={async (id) => { try { await toggleLike(id) } catch (err) {} }} 
+                  onToggleFavorite={(id) => toggleFavorite(id)} 
+                />
               </div>
             </div>
           ) : (
-            <div className="pb-10 px-6">
+            /* 장소 목록 */
+            <div className="pb-10 px-6 pt-2 animate-in fade-in duration-300">
               <div className={S.sectionTitleRow}>
                 <div className="flex flex-col">
                   <h2 className={S.sectionTitle}>
@@ -455,27 +458,30 @@ const MapPage = () => {
           )}
         </div>
 
-        <div className={S.sidebarFooter}>
-          {isLoggedIn ? (
-            <div className="flex items-center space-x-2">
-              {user?.role === 'ADMIN' && (
-                <button onClick={handleAdminButtonClick} className={S.adminMenuBtn}>
-                  <ShieldCheck size={16} />
-                  <span>관리자</span>
+        {/* 푸터: 웹에서는 항상 노출, 모바일 상세에서는 유지 */}
+        {(window.innerWidth >= 1024 || !selectedPlace) && (
+          <div className={S.sidebarFooter}>
+            {isLoggedIn ? (
+              <div className="flex items-center space-x-2">
+                {user?.role === 'ADMIN' && (
+                  <button onClick={handleAdminButtonClick} className={S.adminMenuBtn}>
+                    <ShieldCheck size={16} />
+                    <span>관리자</span>
+                  </button>
+                )}
+                <button onClick={logout} className={S.logoutBtn}>
+                  <LogOut size={16} />
+                  <span>로그아웃</span>
                 </button>
-              )}
-              <button onClick={logout} className={S.logoutBtn}>
-                <LogOut size={16} />
-                <span>로그아웃</span>
+              </div>
+            ) : (
+              <button onClick={() => setIsLoginModalOpen(true)} className={S.loginTriggerBtn}>
+                <User size={16} />
+                <span>로그인 / 회원가입</span>
               </button>
-            </div>
-          ) : (
-            <button onClick={() => setIsLoginModalOpen(true)} className={S.loginTriggerBtn}>
-              <User size={16} />
-              <span>로그인 / 회원가입</span>
-            </button>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </aside>
 
       <main className={S.mapMain}>
@@ -603,11 +609,6 @@ const S = {
   contentArea: `
     flex-1 overflow-y-auto 
     min-h-0 no-scrollbar
-  `,
-
-  detailContainer: `
-    animate-in slide-in-from-bottom lg:slide-in-from-left 
-    duration-300 pt-2 lg:pt-0 lg:pb-20 px-6
   `,
 
   detailHeader: `
